@@ -140,7 +140,7 @@ The palette pairs cool graphite neutrals with pale violet emphasis and muted sem
 
 ### Primary
 
-Quiet violet (`accent`) marks primary actions, focus, the budget meter and selected controls. Its darker ink keeps filled actions readable. Active navigation uses a separate subdued violet surface so it does not compete with the main action.
+Quiet violet (`accent`) marks primary actions, focus and selected controls. Its darker ink keeps filled actions readable. Active navigation uses a separate subdued violet surface so it does not compete with the main action.
 
 ### Neutral
 
@@ -161,7 +161,7 @@ Inter Variable is used throughout, with Segoe UI and the system sans-serif fallb
 - Body defaults to the body role; explanations commonly use (11–12px), with relaxed line height where text wraps.
 - Field labels use the label role. Uppercase environment section labels use the section-label role.
 - Footer and metadata text use (9–10px). Keep essential decisions in larger labels and controls.
-- Clocks, budgets and provider prices use tabular numerals. Values remain selectable where native text controls permit it.
+- Clocks and provider prices use tabular numerals. Values remain selectable where native text controls permit it.
 
 ## Layout
 

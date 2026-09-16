@@ -20,7 +20,7 @@ Configure and inspect a separate regional browsing environment. Keep account ses
 
 ## Operating Context
 
-The user chooses and supplies a proxy. Support free and paid providers with a total connection budget of $30/month. No required subscription for the local app. Browsing, login and publishing occur in the embedded browser. No video studio.
+The user chooses and supplies a proxy. Support free and paid providers. Provider selection should respect the user's $30/month preference; do not track or enforce a budget in the app. No required subscription for the local app. Browsing, login and publishing occur in the embedded browser. No video studio.
 
 ## Capabilities and Constraints
 

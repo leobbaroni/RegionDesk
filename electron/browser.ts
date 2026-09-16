@@ -46,7 +46,7 @@ export class AccountBrowser {
       ses.setCertificateVerifyProc((request, callback) => {
         const expected = process.env.REGIONDESK_TEST_CERT_SHA256!.replaceAll(':', '').toLowerCase();
         const actual = new X509Certificate(request.certificate.data).fingerprint256.replaceAll(':', '').toLowerCase();
-        callback(request.hostname === '127.0.0.1' && actual === expected ? 0 : -3);
+        callback(['127.0.0.1', 'regiondesk.test', 'regiondesk-frame.test'].includes(request.hostname) && actual === expected ? 0 : -3);
       });
     }
     ses.setPermissionCheckHandler((_wc, permission) => id === this.store.activeId && this.allowed() && this.store.active.locationPermission === 'configured' && permission === 'geolocation');
@@ -107,6 +107,23 @@ export class AccountBrowser {
     // This is a local blank document; no account website has been requested yet.
     await wc.loadURL('about:blank');
     wc.debugger.attach('1.3');
+    // Configure child contexts before they execute site code. Page overrides
+    // alone leave navigator.language in workers at the machine's language.
+    wc.debugger.on('message', (_event, method, params) => {
+      if (method !== 'Target.attachedToTarget') return;
+      const child = params.sessionId as string;
+      void (async () => {
+        await wc.debugger.sendCommand('Emulation.setUserAgentOverride', { userAgent, acceptLanguage: profile.locale }, child);
+        if (params.targetInfo.type === 'iframe' || params.targetInfo.type === 'page') {
+          await wc.debugger.sendCommand('Emulation.setTimezoneOverride', { timezoneId: profile.timezone }, child);
+          await wc.debugger.sendCommand('Emulation.setLocaleOverride', { locale: profile.locale }, child);
+          await wc.debugger.sendCommand('Emulation.setGeolocationOverride', { latitude: profile.latitude, longitude: profile.longitude, accuracy: 5000 }, child);
+        }
+        await wc.debugger.sendCommand('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: true, flatten: true }, child);
+        await wc.debugger.sendCommand('Runtime.runIfWaitingForDebugger', {}, child);
+      })().catch(() => { if (this.view === view) void this.lock('A browser context could not apply the regional settings. Browsing was locked.', 'error'); });
+    });
+    await wc.debugger.sendCommand('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: true, flatten: true });
     await wc.debugger.sendCommand('Emulation.setTimezoneOverride', { timezoneId: profile.timezone });
     await wc.debugger.sendCommand('Emulation.setLocaleOverride', { locale: profile.locale });
     await wc.debugger.sendCommand('Emulation.setUserAgentOverride', { userAgent, acceptLanguage: profile.locale });
@@ -163,6 +180,9 @@ export class AccountBrowser {
       this.state.network = network;
       if (network.country !== this.store.active.country) {
         await this.lock(`Region mismatch: the proxy reports ${network.country}; this profile requires ${this.store.active.country}. Choose a matching endpoint.`, 'error'); return;
+      }
+      if (network.timezone && new Intl.DateTimeFormat('en', { timeZone: network.timezone }).resolvedOptions().timeZone !== new Intl.DateTimeFormat('en', { timeZone: this.store.active.timezone }).resolvedOptions().timeZone) {
+        await this.lock(`Timezone mismatch: the proxy reports ${network.timezone}; this profile uses ${this.store.active.timezone}. Update the profile or choose a matching endpoint.`, 'error'); return;
       }
       trace('creating browser view'); await this.createView(); trace('browser view configured');
       if (token !== this.generation) return;

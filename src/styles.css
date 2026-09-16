@@ -56,15 +56,6 @@ nav { display: flex; flex-direction: column; gap: 4px; }
 .small-dot { width: 5px; height: 5px; border-radius: 50%; display: inline-block; background: #858793; flex-shrink: 0; }
 .small-dot.online { background: var(--green); }
 .sidebar-bottom { margin-top: auto; padding-top: 28px; }
-.budget { margin: 0 10px 25px; }
-.budget > div { display: flex; flex-direction: column; gap: 8px; }
-.budget > div > span { font-size: 11px; color: #b0b1bc; }
-.budget strong { font-size: 14px; font-weight: 500; font-variant-numeric: tabular-nums; }
-.budget strong span { font-size: 12px; color: #9395a1; font-weight: 400; }
-progress { width: 100%; height: 3px; border: 0; margin: 12px 0 6px; appearance: none; border-radius: 2px; }
-progress::-webkit-progress-bar { background: #2d2f37; border-radius: 2px; }
-progress::-webkit-progress-value { background: var(--accent); border-radius: 2px; }
-.budget small { font-size: 10px; color: #90929e; }
 .help-button { display: flex; align-items: center; gap: 8px; background: none; border: 0; font-size: 11px; color: #a7a9b5; width: 100%; padding: 11px 9px; }
 .help-button span { flex: 1; text-align: left; }
 .help-button:hover { color: var(--fg); }
@@ -197,9 +188,6 @@ h1 { font-size: 23px; font-weight: 560; letter-spacing: -.75px; line-height: 1.3
 .connection-layout { display: flex; gap: 22px; align-items: stretch; }
 .proxy-grid { grid-template-columns: 1.05fr 1.65fr .6fr; }
 .small-tag { display: inline-flex; border: 1px solid #3b3d46; background: #202127; color: #b6b8c4; border-radius: 4px; padding: 4px 7px; font-size: 9px; white-space: nowrap; }
-.input-prefix { display: flex; align-items: center; background: #111215; border: 1px solid #393b44; border-radius: 5px; }
-.input-prefix span { color: #aaaeba; padding-left: 11px; font-size: 12px; }
-.input-prefix input { border: 0; }
 .checkbox-label { display: flex; align-items: center; gap: 7px; color: #b2b5c1; font-size: 11px; margin-top: 13px; }
 .checkbox-label input { accent-color: var(--accent); }
 .save-security { display: flex; align-items: center; gap: 6px; color: #a0a4b0; font-size: 10px; }

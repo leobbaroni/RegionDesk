@@ -2,7 +2,7 @@ export type Screen = 'browser' | 'profiles' | 'connections' | 'diagnostics';
 export type ProxyProtocol = 'http' | 'https' | 'socks5';
 export interface ProxyConfig {
   protocol: ProxyProtocol; host: string; port: number; username: string;
-  hasPassword: boolean; provider: string; monthlyCost: number;
+  hasPassword: boolean; provider: string;
 }
 export interface Profile {
   id: string; name: string; country: string; city: string; locale: string;

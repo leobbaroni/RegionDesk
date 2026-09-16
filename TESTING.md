@@ -19,22 +19,28 @@
 - US/UK profiles do not share cookies or local storage.
 - Returning to a profile and restarting the app retain its own session; startup remains locked until reverified.
 - A country mismatch closes and locks the browser.
+- A same-country timezone mismatch closes and locks the browser.
+- Dedicated workers and cross-site frames report the US profile's language and timezone.
+- Fixture hostnames are resolved by the proxy while Chromium local hostname resolution fails as intended.
+- WebRTC emits zero direct UDP STUN packets and no local ICE candidates in the controlled probe.
 - Stopping the upstream proxy locks browsing, with zero direct requests recorded at the fixture.
 
 The test harness uses an ephemeral certificate trusted by exact SHA-256 pin only in an unpackaged test run. It does not disable production TLS validation. Test data lives under `.test-data/`, separate from the user's normal profile. Screenshots and the run report are under `.impeccable/review/` and are excluded from Git.
 
 ## Verified build: 16 September 2026
 
-The production build, six unit tests, and twelve desktop test groups passed. After `npm run package`, `node scripts/package-smoke.mjs` launched the packaged Windows app and confirmed packaged mode, encrypted-storage availability, a locked startup, and that development test-data overrides are ignored. This smoke check uses the normal application data directory; it does not configure a proxy or log in.
+The production build, six unit tests, and fifteen desktop test groups passed. `node scripts/package-smoke.mjs` checks the unpacked packaged app. The authoritative portable launch check is `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/portable-smoke.ps1`: it launches the executable extracted from the final ZIP with no debugging or sandbox-disabling arguments and requires the workspace and credential-storage status to render. These smoke checks use the normal application data directory; they do not configure a proxy or log in.
 
-The portable executable is `release/RegionDesk-0.1.0-Windows.exe`. It is unsigned and uses the default Electron icon.
+The original self-extracting portable reproduced `ERR_FAILED (-2)` from Windows Temp. Chromium logged repeated GPU-process exits with code `-2147483645` (`0x80000003`). The same archive worked outside Temp or with sandboxing disabled. A custom-protocol experiment still failed, ruling out a file-URL-only problem; that experiment was removed. v0.1.1 ships a ZIP whose extracted executable runs normally with sandboxing enabled. The original Playwright smoke test missed this location-specific sandbox launch failure. The native regression test reproduced it before the packaging correction.
+
+The portable archive is `release/RegionDesk-0.1.1-Windows.zip`; extract all files and run `RegionDesk.exe`. It is unsigned and uses the default Electron icon.
 
 ## Not established by these tests
 
 - Actual free or paid provider availability, IP reputation or residential/mobile classification.
 - Live TikTok login, CAPTCHA behavior, upload/post submission or third-party OAuth compatibility.
 - The country distribution of viewers.
-- Real-provider DNS/WebRTC leak testing, complete hardware-fingerprint masking or worker/iframe consistency.
+- Real-provider DNS/WebRTC leak testing, complete hardware-fingerprint masking, or all shared/service/nested-worker variants.
 - Live HTTPS-proxy or SOCKS5-provider compatibility (the automated upstream fixture uses HTTP CONNECT).
 
 These are limitations, not passing checks. TikTok web actions remain user-controlled.

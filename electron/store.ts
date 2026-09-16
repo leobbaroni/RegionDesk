@@ -15,7 +15,11 @@ export class ProfileStore {
     if (existsSync(this.file)) {
       const data = JSON.parse(readFileSync(this.file, 'utf8'));
       if (data.version !== 1 || !Array.isArray(data.records)) throw new Error('Unsupported profile file. Keep a backup before changing it.');
-      this.records = data.records.map((r: Saved) => ({ profile: { ...validateProfile(r.profile, r.profile), proxy: { ...r.profile.proxy, hasPassword: !!r.password } }, password: r.password || '' }));
+      this.records = data.records.map((r: Saved) => {
+        const profile = validateProfile(r.profile, r.profile);
+        profile.proxy.hasPassword = !!r.password;
+        return { profile, password: r.password || '' };
+      });
       this.activeId = data.activeId;
     }
     if (!this.records.length) { const profile = defaultProfile(); this.records = [{ profile, password: '' }]; this.activeId = profile.id; }
@@ -35,8 +39,6 @@ export class ProfileStore {
     const record = this.records.find(r => r.profile.id === raw.id);
     if (!record) throw new Error('Profile not found.');
     const profile = validateProfile(raw, record.profile);
-    const sum = this.records.filter(r => r.profile.id !== profile.id).reduce((s, r) => s + r.profile.proxy.monthlyCost, 0) + profile.proxy.monthlyCost;
-    if (sum > 30.001) throw new Error('Your saved monthly connection estimates exceed the $30 total budget. Adjust the estimates before saving.');
     let password = record.password;
     if (raw.clearPassword) password = '';
     if (raw.password) {

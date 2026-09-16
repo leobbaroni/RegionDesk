@@ -8,6 +8,10 @@ import type { AppState } from '../shared/types';
 if (!app.isPackaged && process.env.REGIONDESK_TEST === '1' && process.env.REGIONDESK_TEST_DATA) app.setPath('userData', process.env.REGIONDESK_TEST_DATA);
 app.setName('RegionDesk');
 app.commandLine.appendSwitch('disable-quic');
+// Destination hostnames go through the loopback proxy, never Chromium's local DNS.
+// The Node bridge resolves only the upstream proxy endpoint.
+app.commandLine.appendSwitch('host-resolver-rules', 'MAP * ~NOTFOUND, EXCLUDE 127.0.0.1, EXCLUDE localhost');
+app.commandLine.appendSwitch('dns-prefetch-disable');
 app.commandLine.appendSwitch('force-webrtc-ip-handling-policy', 'disable_non_proxied_udp');
 let win: BrowserWindow | null = null;
 let manager: AccountBrowser;

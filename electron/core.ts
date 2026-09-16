@@ -5,7 +5,7 @@ import { regions, type Profile, type ProfileInput, type ProxyConfig } from '../s
 export function defaultProfile(name = 'United States'): Profile {
   const { name: _, ...region } = regions[0];
   return { ...region, id: randomUUID(), name, locationPermission: 'blocked',
-    proxy: { protocol: 'http', host: '', port: 8080, username: '', hasPassword: false, provider: '', monthlyCost: 0 },
+    proxy: { protocol: 'http', host: '', port: 8080, username: '', hasPassword: false, provider: '' },
     createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
 }
 function cleanString(value: unknown, max: number, label: string): string {
@@ -28,12 +28,11 @@ export function validateProfile(raw: ProfileInput, previous?: Profile): Profile 
   const host = cleanString(p.host, 253, 'proxy host');
   if (host && !isIP(host) && (!/^[a-zA-Z0-9.-]+$/.test(host) || host.startsWith('.') || host.endsWith('.') || host.includes('..'))) throw new Error('Enter only the proxy hostname or IP, without a URL or credentials.');
   if (!Number.isInteger(p.port) || p.port < 1 || p.port > 65535) throw new Error('Proxy port must be between 1 and 65535.');
-  if (!Number.isFinite(p.monthlyCost) || p.monthlyCost < 0 || p.monthlyCost > 30) throw new Error('Monthly connection cost must be between $0 and $30.');
   if (raw.password !== undefined && (typeof raw.password !== 'string' || raw.password.length > 1024 || /[\r\n\0]/.test(raw.password))) throw new Error('Invalid proxy password.');
   return { id: raw.id, name, country, city: cleanString(raw.city, 80, 'city'), locale, timezone,
     latitude: raw.latitude, longitude: raw.longitude, locationPermission: raw.locationPermission,
     proxy: { protocol: p.protocol, host, port: p.port, username: cleanString(p.username, 256, 'proxy username'),
-      provider: cleanString(p.provider, 80, 'provider name'), monthlyCost: p.monthlyCost, hasPassword: previous?.proxy.hasPassword ?? false },
+      provider: cleanString(p.provider, 80, 'provider name'), hasPassword: previous?.proxy.hasPassword ?? false },
     createdAt: previous?.createdAt ?? new Date().toISOString(), updatedAt: new Date().toISOString() };
 }
 export function proxyURL(proxy: ProxyConfig, password: string): string {

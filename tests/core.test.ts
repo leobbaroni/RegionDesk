@@ -5,11 +5,10 @@ import { defaultProfile, normalizeURL, proxyURL, validateProfile, connectionErro
 test('profiles have separate immutable storage identifiers', () => {
   const a = defaultProfile(), b = defaultProfile(); assert.notEqual(a.id, b.id); assert.match(a.id, /^[a-f0-9-]{36}$/);
 });
-test('regional input accepts valid settings and rejects timezone, coordinate and budget errors', () => {
+test('regional input accepts valid settings and rejects timezone and coordinate errors', () => {
   const p = defaultProfile(); assert.equal(validateProfile(p).country, 'US');
   assert.throws(() => validateProfile({ ...p, timezone: 'Madeup/Place' }), /timezone/);
   assert.throws(() => validateProfile({ ...p, latitude: 91 }), /coordinates/);
-  assert.throws(() => validateProfile({ ...p, proxy: { ...p.proxy, monthlyCost: 31 } }), /\$30/);
   assert.throws(() => validateProfile({ ...p, proxy: { ...p.proxy, host: 'https://user:pass@server/' } }), /hostname/);
   assert.throws(() => validateProfile({ ...p, proxy: { ...p.proxy, port: NaN } }), /port/);
 });

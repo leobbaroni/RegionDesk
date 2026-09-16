@@ -14,7 +14,7 @@ Sources:
 - https://www.webshare.io/static-residential-proxy
 - https://iproyal.com/pricing/static-residential-proxies/
 
-For one account, a consistent saved endpoint is simpler to reason about than rotating addresses. The free and paid routes use the same checks. Neither is certified here for TikTok. 1 GB can be consumed quickly by video browsing/uploads; RegionDesk's estimate field does not meter provider billing.
+For one account, a consistent saved endpoint is simpler to reason about than rotating addresses. The free and paid routes use the same checks. Neither is certified here for TikTok. 1 GB can be consumed quickly by video browsing/uploads; provider billing is managed directly with the provider.
 
 HTTP proxy support means HTTPS destinations use CONNECT tunnels. TLS verification is retained. An HTTPS upstream also encrypts the connection to the proxy itself. SOCKS5 is supported through the local bridge, including upstream credentials; no direct-network fallback is configured.
 
