@@ -1,0 +1,519 @@
+{
+  "narrative": {
+    "keyCharacteristics": [
+      "Compact desktop density with a persistent navigation rail.",
+      "Graphite panels separated by fine borders and tonal shifts.",
+      "Violet actions and selection, with labelled semantic status colors.",
+      "Visible profile context and explicit connection evidence."
+    ],
+    "dos": [
+      "Do preserve the compact graphite desktop shell and quiet violet action hierarchy.",
+      "Do pair semantic color with explicit labels and retain unknown or not-measured states.",
+      "Do preserve visible labels, native control behavior and the shared keyboard focus outline.",
+      "Do keep saving explicit and protect unsaved edits during navigation.",
+      "Do retain profile context and connection status around the browser."
+    ],
+    "northStar": "The regional workspace",
+    "rules": [
+      {
+        "section": "colors",
+        "name": "The Evidence Rule",
+        "body": "Color supports a written state; configured values must never look like measured results merely because they are saved."
+      },
+      {
+        "section": "elevation",
+        "name": "The Flat Workspace Rule",
+        "body": "Keep ordinary panels shadow-free; use depth to distinguish transient UI from the workspace."
+      }
+    ],
+    "donts": [
+      "Don't imply that a saved regional preference is a measured network result.",
+      "Don't use verified styling to imply hardware masking, genuine SIM service or guaranteed audience reach.",
+      "Don't replace structural borders with decorative shadows on ordinary panels.",
+      "Don't treat live TikTok or provider compatibility as verified without actual evidence."
+    ],
+    "overview": "RegionDesk follows the approved Linear/Vercel dark utility direction: graphite layers, hairline separators, quiet violet selection, compact workhorse type and precise status labels. Its Windows desktop shell keeps profile identity and connection evidence near the browser. This document captures the implemented system in `src/tokens.css`, `src/styles.css`, and `src/App.tsx`; the stylesheet remains the implementation source of truth.\n\nControls are restrained and direct. Configuration, pending checks and measured observations have distinct visual states. Decoration does not compete with settings or browsing; icons support labels and state rather than substitute for them."
+  },
+  "components": [
+    {
+      "refersTo": "button-primary",
+      "kind": "button",
+      "name": "primary button",
+      "description": "Implemented primary action treatment.",
+      "css": ".ds-primary{font:500 12px/1.3 \"Inter Variable\",\"Segoe UI\",sans-serif;min-height:33px;padding:7px 11px;border-radius:6px;cursor:pointer;transition:background .15s ease,border-color .15s ease;background:var(--accent,#c2b5ff);color:#242031;border:1px solid #c2b5ff;}.ds-primary:hover:not(:disabled){background:#d0c7ff;border-color:#d0c7ff;}.ds-primary:focus-visible{outline:2px solid var(--accent,#c2b5ff);outline-offset:3px}.ds-primary:disabled{opacity:.43;cursor:not-allowed}@media(prefers-reduced-motion:reduce){.ds-primary{transition:none}}",
+      "html": "<button class='ds-primary'>Save profile</button>"
+    },
+    {
+      "refersTo": "button-secondary",
+      "kind": "button",
+      "name": "secondary button",
+      "description": "Implemented secondary action treatment.",
+      "css": ".ds-secondary{font:500 12px/1.3 \"Inter Variable\",\"Segoe UI\",sans-serif;min-height:33px;padding:7px 11px;border-radius:6px;cursor:pointer;transition:background .15s ease,border-color .15s ease;background:#202126;color:#d8d9e0;border:1px solid #363840;}.ds-secondary:hover:not(:disabled){background:#2b2c33;border-color:#4a4b55;}.ds-secondary:focus-visible{outline:2px solid var(--accent,#c2b5ff);outline-offset:3px}.ds-secondary:disabled{opacity:.43;cursor:not-allowed}@media(prefers-reduced-motion:reduce){.ds-secondary{transition:none}}",
+      "html": "<button class='ds-secondary'>Configure profile</button>"
+    },
+    {
+      "refersTo": "button-ghost",
+      "kind": "button",
+      "name": "ghost button",
+      "description": "Implemented ghost action treatment.",
+      "css": ".ds-ghost{font:500 12px/1.3 \"Inter Variable\",\"Segoe UI\",sans-serif;min-height:33px;padding:7px 11px;border-radius:6px;cursor:pointer;transition:background .15s ease,border-color .15s ease;background:transparent;color:#d8d9e0;border:0;}.ds-ghost:hover:not(:disabled){background:#2b2c33;border-color:#4a4b55;}.ds-ghost:focus-visible{outline:2px solid var(--accent,#c2b5ff);outline-offset:3px}.ds-ghost:disabled{opacity:.43;cursor:not-allowed}@media(prefers-reduced-motion:reduce){.ds-ghost{transition:none}}",
+      "html": "<button class='ds-ghost'>Cancel</button>"
+    },
+    {
+      "refersTo": "button-danger",
+      "kind": "button",
+      "name": "danger button",
+      "description": "Implemented danger action treatment.",
+      "css": ".ds-danger{font:500 12px/1.3 \"Inter Variable\",\"Segoe UI\",sans-serif;min-height:33px;padding:7px 11px;border-radius:6px;cursor:pointer;transition:background .15s ease,border-color .15s ease;background:transparent;color:#f2acb4;border:1px solid #633c43;}.ds-danger:hover:not(:disabled){background:#3a252b;border-color:#8c4f5b;}.ds-danger:focus-visible{outline:2px solid var(--accent,#c2b5ff);outline-offset:3px}.ds-danger:disabled{opacity:.43;cursor:not-allowed}@media(prefers-reduced-motion:reduce){.ds-danger{transition:none}}",
+      "html": "<button class='ds-danger'>Delete profile</button>"
+    },
+    {
+      "refersTo": "input",
+      "kind": "input",
+      "name": "Text field",
+      "description": "Native labelled input with an inset surface.",
+      "css": ".ds-field{display:flex;flex-direction:column;gap:8px;font:11px \"Inter Variable\",\"Segoe UI\",sans-serif;color:#c9cbd5}.ds-field input{font:12px \"Inter Variable\",\"Segoe UI\",sans-serif;background:#111215;color:#e0e1e8;border:1px solid #393b44;border-radius:5px;height:35px;padding:7px 10px;caret-color:var(--accent,#c2b5ff)}.ds-field input:hover:not(:disabled){border-color:#555762}.ds-field input:focus-visible{outline:2px solid var(--accent,#c2b5ff);outline-offset:3px}.ds-field input:disabled{opacity:.45}",
+      "html": "<label class=\"ds-field\">Profile name<input value=\"United States\" /></label>"
+    },
+    {
+      "refersTo": "navigation-active",
+      "kind": "nav",
+      "name": "Active navigation",
+      "description": "Persistent desktop screen navigation.",
+      "css": ".ds-nav{display:flex;align-items:center;gap:10px;height:37px;padding:0 12px;border:0;border-radius:6px;background:#292634;color:#dfd8ff;font:480 13px \"Inter Variable\",\"Segoe UI\",sans-serif;cursor:pointer}.ds-nav svg{color:#b6a5ff}.ds-nav:hover{color:#dfd8ff;background:#292634}.ds-nav:focus-visible{outline:2px solid var(--accent,#c2b5ff);outline-offset:3px}",
+      "html": "<button class=\"ds-nav\" aria-current=\"page\"><svg width=\"17\" height=\"17\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M3 12h18M12 3c5 5 5 13 0 18M12 3c-5 5-5 13 0 18\"/></svg>Browser</button>"
+    },
+    {
+      "refersTo": "status-pending",
+      "kind": "chip",
+      "name": "Connection status",
+      "description": "Noninteractive written runtime state with supporting color.",
+      "css": ".ds-status{display:inline-flex;align-items:center;gap:6px;border:1px solid #4c4434;color:#d9bd8d;background:#29251e;border-radius:5px;padding:5px 8px;font:500 10px \"Inter Variable\",\"Segoe UI\",sans-serif;white-space:nowrap}.ds-status>span{width:4px;height:4px;border-radius:50%;background:currentColor}",
+      "html": "<span class=\"ds-status\"><span></span>Not connected</span>"
+    },
+    {
+      "refersTo": "settings-panel",
+      "kind": "card",
+      "name": "Settings panel",
+      "description": "Flat sectioned settings container.",
+      "css": ".ds-panel{border:1px solid var(--border,#2c2e35);border-radius:9px;background:#17181c;padding:24px;font-family:\"Inter Variable\",\"Segoe UI\",sans-serif;color:var(--fg,#e9e9ef)}.ds-panel h2{margin:0;font-size:13px;font-weight:530;letter-spacing:-.15px}.ds-panel p{margin:7px 0 0;color:#a2a5b1;font-size:11px;line-height:1.6}",
+      "html": "<section class=\"ds-panel\"><h2>Regional preferences</h2><p>These apply inside the browser, not to Windows.</p></section>"
+    },
+    {
+      "description": "Labelled native radio in a selected tile.",
+      "html": "<label class=\"ds-choice\"><input type=\"radio\" name=\"ds-location\" checked /><span><strong>Block location requests</strong><small>Websites cannot request browser coordinates.</small></span></label>",
+      "name": "Location choice",
+      "kind": "custom",
+      "css": ".ds-choice{display:flex;align-items:flex-start;gap:9px;border:1px solid #77639f;border-radius:6px;padding:14px;background:#25212e;color:var(--fg,#e9e9ef);font-family:\"Inter Variable\",\"Segoe UI\",sans-serif}.ds-choice input{width:13px;height:13px;margin:2px 0 0;accent-color:#c0aff9}.ds-choice input:focus-visible{outline:2px solid var(--accent,#c2b5ff);outline-offset:3px}.ds-choice strong{font-size:11px;font-weight:500;display:block}.ds-choice small{color:#aaa6b9;font-size:10px;line-height:1.7;display:block;margin-top:6px}"
+    }
+  ],
+  "title": "Design System: RegionDesk",
+  "generatedAt": "2026-09-16T03:20:13.3270612Z",
+  "extensions": {
+    "breakpoints": [
+      {
+        "name": "compact-desktop",
+        "value": "1200px"
+      }
+    ],
+    "rampNote": "Synthesized preview ramps are metadata, not implemented palette tokens or additional approved UI colors.",
+    "focus": {
+      "offset": "3px",
+      "purpose": "Keyboard focus on native controls.",
+      "value": "2px solid var(--accent)"
+    },
+    "typographyMeta": {
+      "headline": {
+        "displayName": "Page headline",
+        "purpose": "Workspace screen titles."
+      }
+    },
+    "colorMeta": {
+      "ready-bg": {
+        "role": "semantic",
+        "displayName": "ready bg",
+        "tonalRamp": [
+          "oklch(15% 0.07 150)",
+          "oklch(26% 0.07 150)",
+          "oklch(38% 0.07 150)",
+          "oklch(49% 0.07 150)",
+          "oklch(61% 0.07 150)",
+          "oklch(72% 0.07 150)",
+          "oklch(84% 0.07 150)",
+          "oklch(95% 0.07 150)"
+        ]
+      },
+      "bg": {
+        "role": "neutral",
+        "displayName": "bg",
+        "tonalRamp": [
+          "oklch(15% 0.012 270)",
+          "oklch(26% 0.012 270)",
+          "oklch(38% 0.012 270)",
+          "oklch(49% 0.012 270)",
+          "oklch(61% 0.012 270)",
+          "oklch(72% 0.012 270)",
+          "oklch(84% 0.012 270)",
+          "oklch(95% 0.012 270)"
+        ]
+      },
+      "control-text": {
+        "role": "neutral",
+        "displayName": "control text",
+        "tonalRamp": [
+          "oklch(15% 0.012 270)",
+          "oklch(26% 0.012 270)",
+          "oklch(38% 0.012 270)",
+          "oklch(49% 0.012 270)",
+          "oklch(61% 0.012 270)",
+          "oklch(72% 0.012 270)",
+          "oklch(84% 0.012 270)",
+          "oklch(95% 0.012 270)"
+        ]
+      },
+      "accent-ink": {
+        "role": "primary",
+        "displayName": "accent ink",
+        "tonalRamp": [
+          "oklch(15% 0.07 295)",
+          "oklch(26% 0.07 295)",
+          "oklch(38% 0.07 295)",
+          "oklch(49% 0.07 295)",
+          "oklch(61% 0.07 295)",
+          "oklch(72% 0.07 295)",
+          "oklch(84% 0.07 295)",
+          "oklch(95% 0.07 295)"
+        ]
+      },
+      "error": {
+        "role": "semantic",
+        "displayName": "error",
+        "tonalRamp": [
+          "oklch(15% 0.06 20)",
+          "oklch(26% 0.06 20)",
+          "oklch(38% 0.06 20)",
+          "oklch(49% 0.06 20)",
+          "oklch(61% 0.06 20)",
+          "oklch(72% 0.06 20)",
+          "oklch(84% 0.06 20)",
+          "oklch(95% 0.06 20)"
+        ]
+      },
+      "input-text": {
+        "role": "neutral",
+        "displayName": "input text",
+        "tonalRamp": [
+          "oklch(15% 0.012 270)",
+          "oklch(26% 0.012 270)",
+          "oklch(38% 0.012 270)",
+          "oklch(49% 0.012 270)",
+          "oklch(61% 0.012 270)",
+          "oklch(72% 0.012 270)",
+          "oklch(84% 0.012 270)",
+          "oklch(95% 0.012 270)"
+        ]
+      },
+      "fg": {
+        "role": "neutral",
+        "displayName": "fg",
+        "tonalRamp": [
+          "oklch(15% 0.012 270)",
+          "oklch(26% 0.012 270)",
+          "oklch(38% 0.012 270)",
+          "oklch(49% 0.012 270)",
+          "oklch(61% 0.012 270)",
+          "oklch(72% 0.012 270)",
+          "oklch(84% 0.012 270)",
+          "oklch(95% 0.012 270)"
+        ]
+      },
+      "accent": {
+        "role": "primary",
+        "displayName": "accent",
+        "tonalRamp": [
+          "oklch(15% 0.07 295)",
+          "oklch(26% 0.07 295)",
+          "oklch(38% 0.07 295)",
+          "oklch(49% 0.07 295)",
+          "oklch(61% 0.07 295)",
+          "oklch(72% 0.07 295)",
+          "oklch(84% 0.07 295)",
+          "oklch(95% 0.07 295)"
+        ]
+      },
+      "checking": {
+        "role": "primary",
+        "displayName": "checking",
+        "tonalRamp": [
+          "oklch(15% 0.07 295)",
+          "oklch(26% 0.07 295)",
+          "oklch(38% 0.07 295)",
+          "oklch(49% 0.07 295)",
+          "oklch(61% 0.07 295)",
+          "oklch(72% 0.07 295)",
+          "oklch(84% 0.07 295)",
+          "oklch(95% 0.07 295)"
+        ]
+      },
+      "ready": {
+        "role": "semantic",
+        "displayName": "ready",
+        "tonalRamp": [
+          "oklch(15% 0.07 150)",
+          "oklch(26% 0.07 150)",
+          "oklch(38% 0.07 150)",
+          "oklch(49% 0.07 150)",
+          "oklch(61% 0.07 150)",
+          "oklch(72% 0.07 150)",
+          "oklch(84% 0.07 150)",
+          "oklch(95% 0.07 150)"
+        ]
+      },
+      "green": {
+        "role": "semantic",
+        "displayName": "green",
+        "tonalRamp": [
+          "oklch(15% 0.07 150)",
+          "oklch(26% 0.07 150)",
+          "oklch(38% 0.07 150)",
+          "oklch(49% 0.07 150)",
+          "oklch(61% 0.07 150)",
+          "oklch(72% 0.07 150)",
+          "oklch(84% 0.07 150)",
+          "oklch(95% 0.07 150)"
+        ]
+      },
+      "pending-bg": {
+        "role": "semantic",
+        "displayName": "pending bg",
+        "tonalRamp": [
+          "oklch(15% 0.06 80)",
+          "oklch(26% 0.06 80)",
+          "oklch(38% 0.06 80)",
+          "oklch(49% 0.06 80)",
+          "oklch(61% 0.06 80)",
+          "oklch(72% 0.06 80)",
+          "oklch(84% 0.06 80)",
+          "oklch(95% 0.06 80)"
+        ]
+      },
+      "selection-text": {
+        "role": "primary",
+        "displayName": "selection text",
+        "tonalRamp": [
+          "oklch(15% 0.07 295)",
+          "oklch(26% 0.07 295)",
+          "oklch(38% 0.07 295)",
+          "oklch(49% 0.07 295)",
+          "oklch(61% 0.07 295)",
+          "oklch(72% 0.07 295)",
+          "oklch(84% 0.07 295)",
+          "oklch(95% 0.07 295)"
+        ]
+      },
+      "input": {
+        "role": "neutral",
+        "displayName": "input",
+        "tonalRamp": [
+          "oklch(15% 0.012 270)",
+          "oklch(26% 0.012 270)",
+          "oklch(38% 0.012 270)",
+          "oklch(49% 0.012 270)",
+          "oklch(61% 0.012 270)",
+          "oklch(72% 0.012 270)",
+          "oklch(84% 0.012 270)",
+          "oklch(95% 0.012 270)"
+        ]
+      },
+      "selection": {
+        "role": "primary",
+        "displayName": "selection",
+        "tonalRamp": [
+          "oklch(15% 0.07 295)",
+          "oklch(26% 0.07 295)",
+          "oklch(38% 0.07 295)",
+          "oklch(49% 0.07 295)",
+          "oklch(61% 0.07 295)",
+          "oklch(72% 0.07 295)",
+          "oklch(84% 0.07 295)",
+          "oklch(95% 0.07 295)"
+        ]
+      },
+      "control-hover": {
+        "role": "neutral",
+        "displayName": "control hover",
+        "tonalRamp": [
+          "oklch(15% 0.012 270)",
+          "oklch(26% 0.012 270)",
+          "oklch(38% 0.012 270)",
+          "oklch(49% 0.012 270)",
+          "oklch(61% 0.012 270)",
+          "oklch(72% 0.012 270)",
+          "oklch(84% 0.012 270)",
+          "oklch(95% 0.012 270)"
+        ]
+      },
+      "pending": {
+        "role": "semantic",
+        "displayName": "pending",
+        "tonalRamp": [
+          "oklch(15% 0.06 80)",
+          "oklch(26% 0.06 80)",
+          "oklch(38% 0.06 80)",
+          "oklch(49% 0.06 80)",
+          "oklch(61% 0.06 80)",
+          "oklch(72% 0.06 80)",
+          "oklch(84% 0.06 80)",
+          "oklch(95% 0.06 80)"
+        ]
+      },
+      "border": {
+        "role": "neutral",
+        "displayName": "border",
+        "tonalRamp": [
+          "oklch(15% 0.012 270)",
+          "oklch(26% 0.012 270)",
+          "oklch(38% 0.012 270)",
+          "oklch(49% 0.012 270)",
+          "oklch(61% 0.012 270)",
+          "oklch(72% 0.012 270)",
+          "oklch(84% 0.012 270)",
+          "oklch(95% 0.012 270)"
+        ]
+      },
+      "accent-hover": {
+        "role": "primary",
+        "displayName": "accent hover",
+        "tonalRamp": [
+          "oklch(15% 0.07 295)",
+          "oklch(26% 0.07 295)",
+          "oklch(38% 0.07 295)",
+          "oklch(49% 0.07 295)",
+          "oklch(61% 0.07 295)",
+          "oklch(72% 0.07 295)",
+          "oklch(84% 0.07 295)",
+          "oklch(95% 0.07 295)"
+        ]
+      },
+      "error-bg": {
+        "role": "semantic",
+        "displayName": "error bg",
+        "tonalRamp": [
+          "oklch(15% 0.06 20)",
+          "oklch(26% 0.06 20)",
+          "oklch(38% 0.06 20)",
+          "oklch(49% 0.06 20)",
+          "oklch(61% 0.06 20)",
+          "oklch(72% 0.06 20)",
+          "oklch(84% 0.06 20)",
+          "oklch(95% 0.06 20)"
+        ]
+      },
+      "sidebar": {
+        "role": "neutral",
+        "displayName": "sidebar",
+        "tonalRamp": [
+          "oklch(15% 0.012 270)",
+          "oklch(26% 0.012 270)",
+          "oklch(38% 0.012 270)",
+          "oklch(49% 0.012 270)",
+          "oklch(61% 0.012 270)",
+          "oklch(72% 0.012 270)",
+          "oklch(84% 0.012 270)",
+          "oklch(95% 0.012 270)"
+        ]
+      },
+      "control": {
+        "role": "neutral",
+        "displayName": "control",
+        "tonalRamp": [
+          "oklch(15% 0.012 270)",
+          "oklch(26% 0.012 270)",
+          "oklch(38% 0.012 270)",
+          "oklch(49% 0.012 270)",
+          "oklch(61% 0.012 270)",
+          "oklch(72% 0.012 270)",
+          "oklch(84% 0.012 270)",
+          "oklch(95% 0.012 270)"
+        ]
+      },
+      "checking-bg": {
+        "role": "primary",
+        "displayName": "checking bg",
+        "tonalRamp": [
+          "oklch(15% 0.07 295)",
+          "oklch(26% 0.07 295)",
+          "oklch(38% 0.07 295)",
+          "oklch(49% 0.07 295)",
+          "oklch(61% 0.07 295)",
+          "oklch(72% 0.07 295)",
+          "oklch(84% 0.07 295)",
+          "oklch(95% 0.07 295)"
+        ]
+      },
+      "panel": {
+        "role": "neutral",
+        "displayName": "panel",
+        "tonalRamp": [
+          "oklch(15% 0.012 270)",
+          "oklch(26% 0.012 270)",
+          "oklch(38% 0.012 270)",
+          "oklch(49% 0.012 270)",
+          "oklch(61% 0.012 270)",
+          "oklch(72% 0.012 270)",
+          "oklch(84% 0.012 270)",
+          "oklch(95% 0.012 270)"
+        ]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "muted",
+        "tonalRamp": [
+          "oklch(15% 0.012 270)",
+          "oklch(26% 0.012 270)",
+          "oklch(38% 0.012 270)",
+          "oklch(49% 0.012 270)",
+          "oklch(61% 0.012 270)",
+          "oklch(72% 0.012 270)",
+          "oklch(84% 0.012 270)",
+          "oklch(95% 0.012 270)"
+        ]
+      }
+    },
+    "motion": [
+      {
+        "value": "150ms ease",
+        "purpose": "Button background and border.",
+        "name": "control-transition"
+      },
+      {
+        "value": "220ms cubic-bezier(.16, 1, .3, 1)",
+        "purpose": "Help drawer entrance.",
+        "name": "drawer-enter"
+      },
+      {
+        "value": "900ms linear infinite",
+        "purpose": "Checking spinner.",
+        "name": "checking"
+      },
+      {
+        "value": "animation: none; transition: none; scroll-behavior: auto",
+        "purpose": "Applied under prefers-reduced-motion: reduce.",
+        "name": "reduced-motion"
+      }
+    ],
+    "shadows": [
+      {
+        "value": "0 10px 30px #0008",
+        "purpose": "Floating profile picker.",
+        "name": "profile-menu"
+      },
+      {
+        "value": "0 12px 30px #0006",
+        "purpose": "Transient notifications.",
+        "name": "toast"
+      }
+    ]
+  },
+  "schemaVersion": 2
+}
