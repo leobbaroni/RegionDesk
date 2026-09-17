@@ -25,3 +25,11 @@ The 17 September inspection found separate existing inbound rules for old versio
 ## Verification boundary
 
 The controlled fixture checks startup/service/upstream 429 behavior, cooldown enforcement, recovery, expired-lease locking, zoom, full-screen movement/close, permission denial/grants and profile isolation. The DNS/WebRTC probes and stopped-proxy check still require zero direct fixture requests and zero direct UDP STUN packets. Live provider availability and every possible network protocol are not certified by these checks.
+
+## Tabs, history and address suggestions
+
+Each profile saves its own tab URLs, titles, order, selected tab and up to 500 recent unique history URLs. There are up to 32 tabs per profile. Switching live tabs retains their pages; locking, changing profiles or quitting closes live pages but preserves saved tabs. After verification, only the selected saved tab loads. Other tabs load when selected.
+
+Use + or Ctrl+T to create a tab, its close button or Ctrl+W to close it, and Ctrl+Tab / Ctrl+Shift+Tab to cycle. With a tab focused, Shift+Left/Right changes its order. Popups open managed tabs. The floating window's Tabs menu selects tabs in the same profile.
+
+Ctrl+L opens the workspace address bar, including from a floating page. Matching history suggestions support Up/Down and Enter. History or Ctrl+H opens searchable history with reopen, open-in-new-tab, remove and clear actions. Clearing history requires confirmation and keeps open tabs and cookies. History is stored locally without encryption; this is address/history autocomplete, not form or password autofill.

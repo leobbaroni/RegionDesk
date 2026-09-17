@@ -74,11 +74,11 @@ const api = async (method, arg) => {
   try { return await Promise.race([page.evaluate(([name, value]) => window.regiondesk[name](value), [method, arg]), new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`API timeout: ${method}`)), 25000); })]); }
   finally { clearTimeout(timer); }
 };
-const guest = async expression => app.evaluate(async ({ webContents }, code) => {
-  const wc = webContents.getAllWebContents().find(w => w.getURL().includes('/page') || w.getURL().includes('/next') || w.getURL().includes('/popup'));
+const guest = async expression => app.evaluate(async ({ webContents }, { code, url }) => {
+  const wc = webContents.getAllWebContents().find(w => w.getURL() === url);
   if (!wc) throw new Error('No guest page');
   return wc.executeJavaScript(code);
-}, expression);
+}, { code: expression, url: (await api('getState')).runtime.url });
 const capture = async name => {
   if (process.env.REGIONDESK_CAPTURE !== '1') return;
   await page.evaluate(() => document.fonts.ready);
@@ -105,7 +105,9 @@ try {
   await capture('profile-permissions.png');
   await page.getByRole('button', { name: 'Diagnostics', exact: true }).click();
   await capture('diagnostics.png');
-  pass('all four app screens render at supported desktop sizes');
+  await page.getByRole('button', { name: 'History', exact: true }).first().click();
+  await capture('history-empty.png');
+  pass('all five app screens render at supported desktop sizes');
   await page.getByRole('button', { name: 'Profiles', exact: true }).click();
   const blocked = page.getByRole('radio', { name: /Block location requests/ });
   const configured = page.getByRole('radio', { name: /Use configured coordinates/ });
@@ -254,6 +256,44 @@ try {
   pass('embedded website has no Node or privileged app bridge');
   const geolocationDenied = await guest("new Promise(resolve => navigator.geolocation.getCurrentPosition(() => resolve(false), e => resolve(e.code === 1), {timeout:2000}))");
   assert.equal(geolocationDenied, true); pass('default geolocation permission denies coordinates');
+  const firstTab = (await api('getState')).browsing.activeTabId;
+  await guest("globalThis.tabMarker='retained'; true");
+  const secondState = await api('newTab', `${base}/next?tab=second`);
+  const secondTab = secondState.browsing.activeTabId;
+  await page.waitForTimeout(500);
+  assert.equal((await api('getState')).browsing.tabs.length, 2);
+  await api('selectTab', firstTab);
+  assert.equal(await guest('globalThis.tabMarker'), 'retained');
+  await api('browserAction', 'detach');
+  await api('selectTab', secondTab);
+  assert.equal((await api('getState')).runtime.detached, true);
+  assert.match((await api('getState')).runtime.url, /tab=second/);
+  await api('browserAction', 'dock');
+  await api('selectTab', firstTab);
+  await guest("window.open('/popup?tab=popup'); true"); await page.waitForTimeout(500);
+  let tabState = (await api('getState')).browsing;
+  assert.equal(tabState.tabs.length, 3);
+  await api('closeTab', tabState.activeTabId); await api('selectTab', firstTab);
+  assert.equal(await guest('globalThis.tabMarker'), 'retained');
+  pass('multiple live tabs, popup tabs and floating tab switches preserve existing page state');
+  await page.getByRole('button', { name: 'Browser', exact: true }).click();
+  await page.getByLabel('Website address').fill('tab=second');
+  await page.getByRole('listbox', { name: 'Address suggestions' }).waitFor();
+  assert.equal(await page.getByRole('option').count(), 1);
+  await page.getByLabel('Website address').press('ArrowDown');
+  await page.getByLabel('Website address').press('Enter'); await page.waitForTimeout(500);
+  assert.match((await api('getState')).runtime.url, /tab=second/);
+  await api('navigate', `${base}/page`); await page.waitForTimeout(300);
+  await capture('tabs.png');
+  await page.getByRole('button', { name: 'History', exact: true }).first().click();
+  await page.getByLabel('Search history').fill('tab=second');
+  assert.equal(await page.locator('.history-list li').count(), 1);
+  await capture('history.png');
+  await api('removeHistory', `${base}/next?tab=second`);
+  assert.equal((await api('getState')).browsing.history.some(entry=>entry.url.includes('tab=second')), false);
+  await page.getByRole('button', { name: 'Browser', exact: true }).click();
+  pass('profile history powers keyboard address suggestions and searchable removable history');
+
   assert.equal((await api('getState')).runtime.status, 'ready');
   checkRateLimited = true;
   await api('verify');
@@ -268,6 +308,7 @@ try {
   await api('browserAction', 'detach');
   const bState = await api('createProfile');
   assert.equal(await app.evaluate(({ BaseWindow }) => BaseWindow.getAllWindows().length), 1, 'Profile switching must close floating window');
+  assert.equal(bState.browsing.tabs.length, 1); assert.equal(bState.browsing.tabs[0].url, ''); assert.deepEqual(bState.browsing.history, []);
   const b = bState.profiles.find(p => p.id === bState.activeId);
   await api('saveProfile', { ...b, permissions: {camera:true,microphone:false,notifications:true,clipboard:false,fullscreen:true}, name: 'United Kingdom', country: 'GB', city: 'London', locale: 'en-GB', timezone: 'Europe/London', latitude: 51.5074, longitude: -0.1278, locationPermission: 'configured', password, proxy: { ...a.proxy, host: '127.0.0.1', port: proxyPort, username, provider: 'Local verification fixture' } });
   country = 'GB'; data = await api('verify');
@@ -288,8 +329,16 @@ try {
   assert.equal(await guest("localStorage.getItem('marker')"), 'A');
   assert.equal(await guest("document.cookie.includes('regiondesk=A')"), true);
   pass('returning to a profile restores only its own genuine session');
+  const savedTabs = (await api('getState')).browsing;
   await app.close(); app = null;
+  const requestsBeforeRestart = proxyRequests;
   await launch();
+  const restoredTabs = (await api('getState')).browsing;
+  assert.deepEqual(restoredTabs.tabs.map(({loaded,loading,...tab})=>tab), savedTabs.tabs.map(({loaded,loading,...tab})=>tab));
+  assert.equal(restoredTabs.activeTabId, savedTabs.activeTabId);
+  assert.ok(restoredTabs.tabs.every(tab=>!tab.loaded));
+  assert.equal(proxyRequests, requestsBeforeRestart);
+  pass('restart restores profile tab order/selection without any page request before verification');
   assert.equal((await api('getState')).runtime.status, 'locked');
   data = await api('verify'); assert.equal(data.runtime.status, 'ready', data.runtime.message);
   await api('navigate', `${base}/page`); await page.waitForTimeout(500);

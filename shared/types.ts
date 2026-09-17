@@ -1,4 +1,4 @@
-export type Screen = 'browser' | 'profiles' | 'connections' | 'diagnostics';
+export type Screen = 'browser' | 'profiles' | 'connections' | 'diagnostics' | 'history';
 export type ProxyProtocol = 'http' | 'https' | 'socks5';
 export interface ProxyConfig {
   protocol: ProxyProtocol; host: string; port: number; username: string;
@@ -14,6 +14,10 @@ export interface Profile {
 export interface BrowserPermissions { camera: boolean; microphone: boolean; notifications: boolean; clipboard: boolean; fullscreen: boolean }
 export const defaultPermissions: BrowserPermissions = { camera: false, microphone: false, notifications: false, clipboard: false, fullscreen: true };
 export type BrowserAction = 'back' | 'forward' | 'reload' | 'stop' | 'zoom-in' | 'zoom-out' | 'zoom-reset' | 'detach' | 'dock' | 'fullscreen';
+export interface BrowserTab { id: string; url: string; title: string }
+export interface HistoryEntry { url: string; title: string; visitedAt: string; visits: number }
+export interface BrowsingData { tabs: BrowserTab[]; activeTabId: string; history: HistoryEntry[] }
+export interface BrowsingState extends Omit<BrowsingData, 'tabs'> { tabs: (BrowserTab & { loaded: boolean; loading: boolean })[] }
 export type ProfileInput = Omit<Profile, 'createdAt' | 'updatedAt'> & { password?: string; clearPassword?: boolean };
 export interface NetworkEvidence {
   ip: string; country: string; city: string; timezone: string;
@@ -37,6 +41,7 @@ export interface Activity { id: string; at: string; kind: 'info' | 'success' | '
 export interface AppState {
   profiles: Profile[]; activeId: string; runtime: RuntimeState; activity: Activity[];
   secureStorage: boolean; version: string;
+  browsing?: BrowsingState;
 }
 export interface Bounds { x: number; y: number; width: number; height: number }
 export interface RegionDeskAPI {
@@ -49,6 +54,13 @@ export interface RegionDeskAPI {
   disconnect(): Promise<AppState>;
   navigate(url: string): Promise<AppState>;
   browserAction(action: BrowserAction): Promise<void>;
+  newTab(url?: string): Promise<AppState>;
+  selectTab(id: string): Promise<AppState>;
+  closeTab(id: string): Promise<AppState>;
+  moveTab(id: string, direction: 'left' | 'right'): Promise<AppState>;
+  clearHistory(): Promise<AppState>;
+  removeHistory(url: string): Promise<AppState>;
+  onBrowserCommand(callback: (command: 'address' | 'history' | 'permissions') => void): () => void;
   setBrowserBounds(bounds: Bounds | null): Promise<void>;
   inspectBrowser(): Promise<AppState>;
   clearSession(): Promise<AppState>;

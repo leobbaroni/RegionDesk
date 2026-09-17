@@ -1,6 +1,6 @@
 {
   "name": "regiondesk",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "private": true,
   "type": "module",
   "description": "An isolated regional browsing workspace for Windows",
@@ -11,7 +11,7 @@
     "dev": "node scripts/dev.mjs",
     "build": "tsc --noEmit && vite build && node scripts/build.mjs",
     "start": "electron .",
-    "test": "tsx --test tests/core.test.ts",
+    "test": "tsx --test tests/*.test.ts",
     "test:desktop": "node scripts/desktop-test.mjs",
     "package": "npm run build && electron-builder --win zip --publish never"
   },

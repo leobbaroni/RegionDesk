@@ -6,7 +6,7 @@
 
 A Windows desktop workspace for isolated browser sessions, verified proxy routing and regional preferences.
 
-![Version](https://img.shields.io/badge/version-0.1.4-c2b5ff?style=flat-square)
+![Version](https://img.shields.io/badge/version-0.1.5-c2b5ff?style=flat-square)
 ![Platform](https://img.shields.io/badge/platform-Windows_x64-0078D4?style=flat-square)
 ![Stack](https://img.shields.io/badge/Electron-React_%2B_TypeScript-47848F?style=flat-square)
 
@@ -25,6 +25,7 @@ RegionDesk embeds Chromium inside a local desktop app. Each profile keeps its ow
 | **Isolated profiles** | Persistent cookies, cache and storage per profile, with explicit session clearing. |
 | **Regional preferences** | Language, timezone and optional configured coordinates, plus presets for 12 countries. |
 | **Verified connections** | Authenticated HTTP, HTTPS and SOCKS5 upstream proxy support; country and reported timezone checks before browsing. |
+| **Saved tabs and history** | Per-profile tabs, recent history and address suggestions; selected tabs restore after verification. |
 | **Flexible browsing** | Page zoom, a native context menu, a floating window and full-screen mode using the same session. |
 | **Permission controls** | Profile settings for camera, microphone, notifications, clipboard and website fullscreen. |
 | **Visible evidence** | Observed browser/network readings, an activity log and credential-free diagnostic exports. |
@@ -65,7 +66,7 @@ No traffic is sent to account websites until verification succeeds. Provider com
 
 ```powershell
 npm run package
-Expand-Archive release/RegionDesk-0.1.4-Windows.zip release/RegionDesk-Windows
+Expand-Archive release/RegionDesk-0.1.5-Windows.zip release/RegionDesk-Windows
 .\release\RegionDesk-Windows\RegionDesk.exe
 ```
 
@@ -75,7 +76,9 @@ Keep all extracted files together. Close the app before replacing files, and reu
 
 | Action | Control |
 | --- | --- |
-| Focus the address bar | `Ctrl+L` in the workspace |
+| Focus the address bar | `Ctrl+L`; type to search this profile's history |
+| Manage tabs | `Ctrl+T`, `Ctrl+W`, `Ctrl+Tab` / `Ctrl+Shift+Tab`; Shift+Left/Right on a focused tab reorders it |
+| Browse history | **History** or `Ctrl+H` |
 | Zoom in / out | Toolbar buttons or `Ctrl` + `+` / `-` while the page is focused |
 | Reset zoom | Click the zoom percentage or press `Ctrl+0` |
 | Open a floating browser | **Pop out**; closing it returns the page to the workspace |
@@ -108,7 +111,7 @@ Each profile uses a persistent Electron session. A loopback-only bridge connects
 
 Verification confirms the proxy's reported country and timezone at the time of the check. It does not establish residential/mobile origin, account eligibility, CAPTCHA-free access or audience distribution. The real browser engine and hardware remain observable.
 
-Embedded-browser compatibility can differ from Chrome. Downloads and external app protocols are blocked; popups navigate within the same profile. Live TikTok login, publishing and audience distribution have not been verified. See [TESTING.md](TESTING.md) for the full evidence boundary.
+Embedded-browser compatibility can differ from Chrome. Downloads and external app protocols are blocked; popups open new managed tabs within the same profile. Live TikTok login, publishing and audience distribution have not been verified. See [TESTING.md](TESTING.md) for the full evidence boundary.
 
 ## Development and verification
 
@@ -122,7 +125,7 @@ Embedded-browser compatibility can differ from Chrome. Downloads and external ap
 | `node scripts/package-smoke.mjs` | Check the unpacked packaged app |
 | `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/portable-smoke.ps1` | Verify normal launch from the extracted ZIP |
 
-The **v0.1.4 verification run** passed 7 unit tests, 23 desktop test groups and both packaged-launch checks. A live proxy check confirmed matching outgoing IP, language and timezone before and after moving a page into the floating window. These are recorded results, not continuous-integration badges.
+The **v0.1.5 verification run** passed 10 unit tests, 26 desktop test groups and both packaged-launch checks. It covers multiple live tabs, popup handling, per-profile history, address suggestions and saved-tab restoration. The earlier v0.1.4 live proxy check confirmed matching outgoing IP, language and timezone before and after moving a page into the floating window. These are recorded results, not continuous-integration badges.
 
 Desktop tests require OpenSSL; the default Windows path uses Git's bundled copy. Set `OPENSSL_BIN` to override it. Tests use separate data under `.test-data/` and a fixture-specific certificate pin that packaged builds ignore.
 
@@ -139,7 +142,9 @@ docs/           Controls, verification notes and integration research
 
 Settings and encrypted proxy credentials live under `%APPDATA%/RegionDesk`; website data is stored in separate `Partitions/regiondesk-<id>` directories. Password encryption is tied to the Windows account. Diagnostic exports include the measured public IP, but omit proxy credentials, cookie values and browsing URLs.
 
-**Clear session** removes a profile's local website data while retaining its settings. **Delete profile** removes its local settings, credentials and website data after confirmation. Neither action deletes an online account.
+Tab URLs, titles, order, selection and the latest 500 unique history URLs are saved locally in `browsing.json` without encryption. Each profile supports up to 32 tabs. Restored tabs wait for successful verification; only the selected tab loads until you select others. Address suggestions use that profile's history. Form and password autofill are not included.
+
+**Clear history** removes the current profile's history and suggestions while keeping open tabs and website data. **Clear session** removes a profile's local website data while retaining its settings. **Delete profile** removes its local settings, credentials, saved tabs, history and website data after confirmation. Neither action deletes an online account.
 
 ## Documentation
 

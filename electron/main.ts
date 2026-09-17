@@ -3,6 +3,7 @@ import path from 'node:path';
 import { writeFile } from 'node:fs/promises';
 import { ProfileStore } from './store';
 import { AccountBrowser } from './browser';
+import { BrowsingStore } from './browsing-store';
 import type { AppState } from '../shared/types';
 
 if (!app.isPackaged && process.env.REGIONDESK_TEST === '1' && process.env.REGIONDESK_TEST_DATA) app.setPath('userData', process.env.REGIONDESK_TEST_DATA);
@@ -16,11 +17,12 @@ app.commandLine.appendSwitch('force-webrtc-ip-handling-policy', 'disable_non_pro
 let win: BrowserWindow | null = null;
 let manager: AccountBrowser;
 let store: ProfileStore;
+let browsing: BrowsingStore;
 let quitting = false;
 let queue = Promise.resolve<unknown>(undefined);
 const providers: Record<string, string> = { 'webshare-free': 'https://www.webshare.io/free-proxy', 'webshare-isp': 'https://www.webshare.io/static-residential-proxy', iproyal: 'https://iproyal.com/pricing/static-residential-proxies/' };
 
-function state(): AppState { return { profiles: store.profiles, activeId: store.activeId, runtime: manager.state, activity: manager.activity, secureStorage: safeStorage.isEncryptionAvailable(), version: app.getVersion() }; }
+function state(): AppState { return { profiles: store.profiles, activeId: store.activeId, runtime: manager.state, activity: manager.activity, browsing: manager.browsingState, secureStorage: safeStorage.isEncryptionAvailable(), version: app.getVersion() }; }
 function emit() { if (win && !win.isDestroyed()) win.webContents.send('state:update', state()); }
 function handle(name: string, fn: (...args: any[]) => unknown, serial = true) {
   ipcMain.handle(name, (event, ...args) => {
@@ -32,10 +34,11 @@ function handle(name: string, fn: (...args: any[]) => unknown, serial = true) {
 }
 async function createWindow() {
   store = new ProfileStore();
+  browsing = new BrowsingStore(app.getPath('userData'), !app.isPackaged && process.env.REGIONDESK_TEST === '1');
   win = new BrowserWindow({ width: 1440, height: 960, minWidth: 1060, minHeight: 740, backgroundColor: '#101113', title: 'RegionDesk', autoHideMenuBar: true,
     webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false, webSecurity: true } });
   win.removeMenu();
-  manager = new AccountBrowser(win, store, emit);
+  manager = new AccountBrowser(win, store, browsing, emit);
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', event => event.preventDefault());
   handle('state:get', state, false);
@@ -46,12 +49,21 @@ async function createWindow() {
     if (!store.profiles.some(p => p.id === id)) throw new Error('Profile not found.');
     if (store.profiles.length === 1) throw new Error('Keep at least one profile.');
     const result = await dialog.showMessageBox(win!, { type: 'warning', title: 'Delete profile', message: 'Delete this profile and its saved website sessions?', detail: 'This removes local cookies, credentials and settings. It does not delete the TikTok account.', buttons: ['Cancel', 'Delete profile'], defaultId: 0, cancelId: 0 });
-    if (result.response === 1) { await manager.clearSession(id); store.delete(id); await manager.reset(); emit(); }
+    if (result.response === 1) { await manager.clearSession(id); browsing.delete(id); store.delete(id); await manager.reset(); emit(); }
     return state();
   });
   handle('connection:verify', async () => { await manager.verify(); return state(); });
   handle('connection:disconnect', async () => { await manager.lock(); return state(); }, false);
   handle('browser:navigate', async url => { await manager.navigate(url); return state(); });
+  handle('tabs:new', async url => { await manager.newTab(url); return state(); });
+  handle('tabs:select', async id => { await manager.selectTab(id); return state(); });
+  handle('tabs:close', async id => { await manager.closeTab(id); return state(); });
+  handle('tabs:move', (id, direction) => { manager.moveTab(id, direction); return state(); });
+  handle('history:remove', url => { browsing.removeHistory(store.activeId, url); emit(); return state(); });
+  handle('history:clear', async () => {
+    const result = await dialog.showMessageBox(win!, { type: 'warning', title: 'Clear browsing history', message: 'Clear history and address suggestions for this profile?', detail: 'Open tabs, cookies and other profiles are kept.', buttons: ['Cancel', 'Clear history'], defaultId: 0, cancelId: 0 });
+    if (result.response === 1) { browsing.clearHistory(store.activeId); emit(); } return state();
+  });
   handle('browser:action', action => manager.action(action), false);
   handle('browser:bounds', bounds => manager.setBounds(bounds), false);
   handle('browser:inspect', async () => { await manager.inspect(); return state(); });

@@ -5,7 +5,8 @@ import { randomUUID, X509Certificate } from 'node:crypto';
 import { connectionError, isPrivateHost, normalizeURL, proxyURL } from './core';
 import type { ProfileStore } from './store';
 import type { Activity, Bounds, BrowserEvidence, NetworkEvidence, RuntimeState } from '../shared/types';
-import { defaultPermissions } from '../shared/types';
+import { defaultPermissions, type BrowsingState } from '../shared/types';
+import { BrowsingStore } from './browsing-store';
 
 export const lockedState = (): RuntimeState => ({ status: 'locked', message: 'Add a connection and verify its region to unlock browsing.', url: '', title: '', loading: false, canGoBack: false, canGoForward: false, cookieCount: null });
 const productionCheck = 'https://ipwho.is/';
@@ -26,6 +27,9 @@ export class AccountBrowser {
   activity: Activity[] = [];
   view: WebContentsView | null = null;
   private sessions = new Map<string, Session>();
+  private views = new Map<string, WebContentsView>();
+  private viewEpoch = 0;
+  private tabQueue = Promise.resolve();
   private bridge: ProxyServer | null = null;
   private upstreamStatus: number | undefined;
   private validUntil = 0;
@@ -40,7 +44,7 @@ export class AccountBrowser {
   private retryCount = 0;
   private upstreamRetryDelay = 30_000;
 
-  constructor(private win: BrowserWindow, private store: ProfileStore, private emit: () => void) {
+  constructor(private win: BrowserWindow, private store: ProfileStore, private browsing: BrowsingStore, private emit: () => void) {
     this.timer = setInterval(() => {
       if (this.state.status === 'ready' && Date.now() >= this.validUntil) {
         const retry = this.retryAt;
@@ -49,14 +53,68 @@ export class AccountBrowser {
     }, 1000);
     this.timer.unref();
   }
+  get browsingState(): BrowsingState {
+    const data = this.browsing.get(this.store.activeId);
+    return { ...data, tabs: data.tabs.map(tab => ({ ...tab, loaded: this.views.has(tab.id), loading: this.views.get(tab.id)?.webContents.isLoading() || false })) };
+  }
+  private tabTask(task: () => Promise<void>) {
+    const result = this.tabQueue.then(task, task); this.tabQueue = result.catch(() => {}); return result;
+  }
+  private reportTabError(error: unknown) { this.log(error instanceof Error ? error.message : 'The tab action failed.', 'warning'); }
+  private focusShell(command: 'address' | 'history' | 'permissions') {
+    this.win.show(); this.win.focus(); this.win.webContents.focus(); this.win.webContents.send('browser:command', command);
+  }
+  private activateView(view: WebContentsView | null) {
+    if (this.view === view) return;
+    const previous = this.view;
+    if (previous) { previous.setVisible(false); if (this.floating) { this.floating.contentView.removeChildView(previous); this.win.contentView.addChildView(previous); } }
+    this.view = view;
+    if (view && this.floating) { this.win.contentView.removeChildView(view); this.floating.contentView.addChildView(view); }
+  }
+  private syncActiveView() {
+    const wc = this.view?.webContents;
+    const saved = this.browsing.get(this.store.activeId);
+    const tab = saved.tabs.find(t => t.id === saved.activeTabId)!;
+    this.state.url = wc?.getURL().startsWith('http') ? wc.getURL() : tab.url;
+    this.state.title = tab.title; this.state.loading = wc?.isLoading() || false;
+    this.state.canGoBack = wc?.navigationHistory.canGoBack() || false; this.state.canGoForward = wc?.navigationHistory.canGoForward() || false;
+    this.state.zoom = wc?.getZoomFactor() || 1;
+    this.floating?.setTitle(`${this.store.active.name} · ${tab.title} — RegionDesk`);
+    this.applyBounds(); this.updateFloatingMenu(); this.emit();
+  }
+  private async showActiveTab() {
+    if (!this.allowed()) { this.syncActiveView(); return; }
+    const data = this.browsing.get(this.store.activeId);
+    const tab = data.tabs.find(t => t.id === data.activeTabId)!;
+    const existed = this.views.has(tab.id);
+    await this.createView();
+    if (!this.allowed()) return;
+    if (!existed && tab.url && this.view) void this.view.webContents.loadURL(tab.url).catch(() => {});
+    this.syncActiveView();
+  }
+  newTab(url = '') { return this.tabTask(async () => { this.browsing.newTab(this.store.activeId, url); await this.showActiveTab(); this.emit(); if (!url) this.focusShell('address'); }); }
+  selectTab(id: string) { return this.tabTask(async () => { this.browsing.select(this.store.activeId, id); await this.showActiveTab(); this.emit(); }); }
+  closeTab(id: string) { return this.tabTask(async () => {
+    this.browsing.close(this.store.activeId, id);
+    const old = this.views.get(id); this.views.delete(id);
+    if (old) { if (old === this.view) this.activateView(null); this.win.contentView.removeChildView(old); if (!old.webContents.isDestroyed()) old.webContents.close(); }
+    await this.showActiveTab(); this.emit();
+  }); }
+  moveTab(id: string, direction: 'left' | 'right') { this.browsing.move(this.store.activeId, id, direction); this.updateFloatingMenu(); this.emit(); }
+  private cycleTab(direction: number) {
+    const data = this.browsing.get(this.store.activeId), index = data.tabs.findIndex(t => t.id === data.activeTabId);
+    void this.selectTab(data.tabs[(index + direction + data.tabs.length) % data.tabs.length].id).catch(error => this.reportTabError(error));
+  }
   log(message: string, kind: Activity['kind'] = 'info') {
     this.activity.unshift({ id: randomUUID(), at: new Date().toISOString(), profileId: this.store.activeId, kind, message });
     this.activity = this.activity.slice(0, 60); this.emit();
   }
   private allowed() { return this.state.status === 'ready' && Date.now() < this.validUntil; }
   private permission(id: string, wc: WebContents | null, permission: string, origin: string, media: string[] = []) {
-    if (id !== this.store.activeId || !this.allowed() || !this.view || wc && wc !== this.view.webContents) return false;
-    try { if (new URL(origin).origin !== new URL(this.view.webContents.getURL()).origin) return false; } catch { return false; }
+    if (id !== this.store.activeId || !this.allowed()) return false;
+    const owned = [...this.views.values()].find(view => wc ? view.webContents === wc : view.webContents.getURL().startsWith(origin));
+    if (!owned) return false;
+    try { if (new URL(origin).origin !== new URL(owned.webContents.getURL()).origin) return false; } catch { return false; }
     const p = { ...defaultPermissions, ...this.store.active.permissions };
     // No permission can enable local-network, loopback, devices or host geolocation.
     if (permission === 'geolocation') return this.store.active.locationPermission === 'configured';
@@ -139,7 +197,10 @@ export class AccountBrowser {
     if (resolved.includes('DIRECT') || !resolved.includes(`127.0.0.1:${bridge.port}`)) throw new Error('Proxy route was not applied.');
   }
   private async createView() {
-    if (this.view && !this.view.webContents.isDestroyed()) return;
+    const tabId = this.browsing.get(this.store.activeId).activeTabId;
+    const existing = this.views.get(tabId);
+    if (existing && !existing.webContents.isDestroyed()) { this.activateView(existing); return; }
+    const epoch = this.viewEpoch;
     const profile = this.store.active;
     const ses = this.getSession();
     // Read genuine engine/device metadata from our trusted, secure app renderer.
@@ -152,16 +213,26 @@ export class AccountBrowser {
         platform: native.platform, platformVersion: native.platformVersion, architecture: native.architecture,
         model: native.model, mobile: native.mobile, bitness: native.bitness, wow64: native.wow64, formFactors: native.formFactors };
     })()`);
+    if (epoch !== this.viewEpoch || profile.id !== this.store.activeId || tabId !== this.browsing.get(profile.id).activeTabId) return;
     const userAgent = ses.getUserAgent().replace(/\sElectron\/[^\s]+/g, '').replace(/\sRegionDesk\/[^\s]+/gi, '').replace(/\sregiondesk\/[^\s]+/gi, '');
     ses.setUserAgent(userAgent, profile.locale);
     const view = new WebContentsView({ webPreferences: { session: ses, sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true, allowRunningInsecureContent: false, disableHtmlFullscreenWindowResize: true, devTools: testMode } });
-    this.view = view; view.setBackgroundColor('#101113'); view.setVisible(false); this.win.contentView.addChildView(view);
+    this.views.set(tabId, view); view.setBackgroundColor('#101113'); view.setVisible(false); this.win.contentView.addChildView(view); this.activateView(view);
+    const alive = () => epoch === this.viewEpoch && this.views.get(tabId) === view && profile.id === this.store.activeId && !view.webContents.isDestroyed();
     const wc = view.webContents;
     wc.setUserAgent(userAgent);
     wc.setWebRTCIPHandlingPolicy('disable_non_proxied_udp');
     wc.on('before-input-event', (event, input) => {
       if (input.type !== 'keyDown') return;
       const ctrl = input.control || input.meta;
+      if (ctrl && ['t', 'w', 'l', 'h', 'Tab'].includes(input.key)) {
+        event.preventDefault();
+        if (input.key === 't') void this.newTab().catch(error => this.reportTabError(error));
+        else if (input.key === 'w') void this.closeTab(tabId).catch(error => this.reportTabError(error));
+        else if (input.key === 'Tab') this.cycleTab(input.shift ? -1 : 1);
+        else this.focusShell(input.key === 'h' ? 'history' : 'address');
+        return;
+      }
       const action = input.key === 'F11' ? 'fullscreen' : ctrl && ['+', '='].includes(input.key) ? 'zoom-in' : ctrl && input.key === '-' ? 'zoom-out' : ctrl && input.key === '0' ? 'zoom-reset' : '';
       if (action) { event.preventDefault(); this.action(action); }
       if (input.key === 'Escape' && this.floating?.isFullScreen()) { this.floating.setFullScreen(false); }
@@ -170,6 +241,8 @@ export class AccountBrowser {
     wc.on('context-menu', (_event, details) => {
       if (!this.allowed()) return;
       Menu.buildFromTemplate([
+        { label: 'Open link in new tab', visible: !!details.linkURL, click: () => { void this.newTab(details.linkURL).catch(error => this.reportTabError(error)); } },
+        { label: 'New tab', click: () => { void this.newTab().catch(error => this.reportTabError(error)); } },
         { label: 'Back', enabled: wc.navigationHistory.canGoBack(), click: () => this.action('back') },
         { label: 'Reload', click: () => this.action('reload') },
         { type: 'separator' },
@@ -203,40 +276,43 @@ export class AccountBrowser {
         }
         await wc.debugger.sendCommand('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: true, flatten: true }, child);
         await wc.debugger.sendCommand('Runtime.runIfWaitingForDebugger', {}, child);
-      })().catch(() => { if (this.view === view) void this.lock('A browser context could not apply the regional settings. Browsing was locked.', 'error'); });
+      })().catch(() => { if (alive()) void this.lock('A browser context could not apply the regional settings. Browsing was locked.', 'error'); });
     });
     await wc.debugger.sendCommand('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: true, flatten: true });
     await wc.debugger.sendCommand('Emulation.setTimezoneOverride', { timezoneId: profile.timezone });
     await wc.debugger.sendCommand('Emulation.setLocaleOverride', { locale: profile.locale });
     await wc.debugger.sendCommand('Emulation.setUserAgentOverride', { userAgent, acceptLanguage: profile.locale, userAgentMetadata });
     await wc.debugger.sendCommand('Emulation.setGeolocationOverride', { latitude: profile.latitude, longitude: profile.longitude, accuracy: 5000 });
-    wc.debugger.on('detach', () => { if (this.view === view && !wc.isDestroyed() && this.state.status === 'ready') void this.lock('Browser regional settings were detached. Verify again before browsing.', 'error'); });
+    wc.debugger.on('detach', () => { if (alive() && this.state.status === 'ready') void this.lock('Browser regional settings were detached. Verify again before browsing.', 'error'); });
     const navigationAllowed = (url: string) => { try { normalizeURL(url, testMode); return this.allowed(); } catch { return false; } };
     wc.on('will-navigate', (event, url) => { if (!navigationAllowed(url)) event.preventDefault(); });
     wc.on('will-redirect', (event, url) => { if (!navigationAllowed(url)) event.preventDefault(); });
     wc.setWindowOpenHandler(({ url }) => {
-      if (navigationAllowed(url)) setImmediate(() => { void this.navigate(url).catch(() => {}); });
+      if (navigationAllowed(url)) setImmediate(() => { if (alive()) void this.newTab(url).catch(error => this.reportTabError(error)); });
       else this.log('A popup was blocked. Only HTTPS pages in the verified profile can open.', 'warning');
       return { action: 'deny' };
     });
     wc.on('will-attach-webview', event => event.preventDefault());
-    const sync = () => {
-      if (this.view !== view || wc.isDestroyed()) return;
-      this.state.url = wc.getURL().startsWith('http') ? wc.getURL() : '';
-      this.state.title = wc.getTitle(); this.state.loading = wc.isLoading();
-      this.state.zoom = wc.getZoomFactor();
-      this.floating?.setTitle(`${this.store.active.name} · ${this.state.title || 'Browser'} — RegionDesk`);
-      this.state.canGoBack = wc.navigationHistory.canGoBack(); this.state.canGoForward = wc.navigationHistory.canGoForward(); this.emit();
+    const record = (visit = false) => {
+      if (!alive()) return;
+      const url = wc.getURL();
+      if (url.startsWith('https:') || testMode && url.startsWith('http:')) {
+        try { this.browsing.setPage(profile.id, tabId, url, wc.getTitle(), visit); } catch { /* invalid destinations are never persisted */ }
+      }
     };
-    wc.on('did-start-loading', sync); wc.on('did-stop-loading', sync); wc.on('did-navigate', sync); wc.on('did-navigate-in-page', sync); wc.on('page-title-updated', sync);
-    wc.on('did-finish-load', () => { if (this.view === view && this.allowed()) void this.inspect().catch(() => {}); });
+    const sync = () => { if (!alive()) return; if (this.view === view) this.syncActiveView(); else this.emit(); };
+    wc.on('did-start-loading', sync); wc.on('did-stop-loading', sync);
+    wc.on('did-navigate', (_event, _url, code) => { if (code < 400) record(true); sync(); });
+    wc.on('did-navigate-in-page', (_event, _url, main) => { if (main) { record(true); sync(); } });
+    wc.on('page-title-updated', () => { record(); sync(); });
+    wc.on('did-finish-load', () => { record(); sync(); if (this.view === view && this.allowed()) void this.inspect().catch(() => {}); });
     wc.on('did-fail-load', (_e, code, _desc, _url, isMainFrame) => {
-      if (!isMainFrame || code === -3 || this.view !== view) return;
+      if (!isMainFrame || code === -3 || !alive()) return;
       if (code === -111 && this.upstreamStatus === 429 && this.allowed()) { this.state.message = 'The proxy rate-limited this page. Wait before reloading; your session is preserved.'; this.emit(); }
       else if ([-130, -111, -102, -105, -118].includes(code)) void this.lock('The page lost its connection. Check the proxy and verify again.', 'error');
       else { this.state.message = `The page could not load (network code ${code}). Try another HTTPS address or verify again.`; this.log(this.state.message, 'warning'); }
     });
-    wc.on('render-process-gone', () => { if (this.view === view) void this.lock('The browser stopped unexpectedly. Verify to restart it.', 'error'); });
+    wc.on('render-process-gone', () => { if (alive()) void this.lock('The browser stopped unexpectedly. Verify to restart it.', 'error'); });
     this.applyBounds();
   }
   async verify(background = false) {
@@ -274,11 +350,12 @@ export class AccountBrowser {
       if (network.timezone && new Intl.DateTimeFormat('en', { timeZone: network.timezone }).resolvedOptions().timeZone !== new Intl.DateTimeFormat('en', { timeZone: this.store.active.timezone }).resolvedOptions().timeZone) {
         await this.lock(`Timezone mismatch: the proxy reports ${network.timezone}; this profile uses ${this.store.active.timezone}. Update the profile or choose a matching endpoint.`, 'error'); return;
       }
-      trace('creating browser view'); await this.createView(); trace('browser view configured');
       if (token !== this.generation) return;
       this.validUntil = Date.now() + lifetime;
       this.nextCheck = Date.now() + 45_000; this.retryAt = 0; this.retryCount = 0; this.state.retryAt = undefined;
       this.state.status = 'ready'; this.state.message = 'Proxy country verified. Browser settings are applied; audience region is not measured.';
+      await this.tabTask(() => this.showActiveTab());
+      if (token !== this.generation) return;
       this.state.cookieCount = (await this.getSession().cookies.get({})).length;
       trace('reading browser evidence'); await this.inspect(); trace('evidence complete'); this.applyBounds();
       if (!background) this.log(`Connection verified in ${network.country}. Managed browsing unlocked.`, 'success');
@@ -302,8 +379,10 @@ export class AccountBrowser {
     this.retryAt = 0; this.nextCheck = 0;
     this.dock();
     ++this.generation; this.checking = false; this.abort?.abort(); this.abort = null; this.validUntil = 0;
-    const old = this.view; this.view = null;
-    if (old) { if (!this.win.isDestroyed()) this.win.contentView.removeChildView(old); if (!old.webContents.isDestroyed()) old.webContents.close(); }
+    ++this.viewEpoch;
+    const oldViews = [...this.views.values()]; this.views.clear(); this.view = null;
+    for (const old of oldViews) { if (!this.win.isDestroyed()) this.win.contentView.removeChildView(old); if (!old.webContents.isDestroyed()) old.webContents.close(); }
+    this.browsing.flush();
     this.state = { ...lockedState(), status, message, network: this.state.network, browser: this.state.browser, cookieCount: this.state.cookieCount };
     this.emit();
     const ses = this.sessions.get(this.store.activeId);
@@ -313,13 +392,15 @@ export class AccountBrowser {
     this.log(message, status === 'error' ? 'warning' : 'info');
   }
   async reset() { await this.lock(); this.retryCount = 0; this.state = lockedState(); this.emit(); }
-  async navigate(input: string) {
+  navigate(input: string) { return this.tabTask(async () => {
     if (!this.allowed()) throw new Error('Verify the connection before opening a website.');
     const url = normalizeURL(input, testMode);
+    const id = this.browsing.get(this.store.activeId).activeTabId;
+    this.browsing.setPage(this.store.activeId, id, url, url);
     await this.createView();
-    // Do not hold the IPC queue for a slow or streaming website load.
-    void this.view!.webContents.loadURL(url).catch(() => {}); this.applyBounds();
-  }
+    if (!this.allowed() || !this.view) return;
+    void this.view.webContents.loadURL(url).catch(() => {}); this.syncActiveView();
+  }); }
   action(action: string) {
     const wc = this.view?.webContents; if (!wc || !this.allowed()) return;
     if (action === 'back' && wc.navigationHistory.canGoBack()) wc.navigationHistory.goBack();
@@ -337,21 +418,28 @@ export class AccountBrowser {
   private detach() {
     if (!this.view || this.floating) { this.floating?.focus(); return; }
     const floating = new BaseWindow({ width: 1200, height: 850, minWidth: 600, minHeight: 400, backgroundColor: '#101113', title: `${this.store.active.name} — RegionDesk` });
-    floating.setMenu(Menu.buildFromTemplate([{ label: 'Browser', submenu: [
-      { label: 'Back', click: () => this.action('back') }, { label: 'Forward', click: () => this.action('forward') },
-      { label: 'Reload', accelerator: 'Ctrl+R', click: () => this.action('reload') },
-      { label: 'Zoom in', click: () => this.action('zoom-in') }, { label: 'Zoom out', click: () => this.action('zoom-out') }, { label: 'Reset zoom', click: () => this.action('zoom-reset') },
-      { label: 'Full screen (F11 / Esc)', click: () => this.action('fullscreen') },
-      { label: 'Return to workspace', click: () => this.dock() },
-      { label: 'Lock browser', click: () => { void this.lock(); } }
-    ] }]));
     this.win.contentView.removeChildView(this.view); floating.contentView.addChildView(this.view);
-    this.floating = floating; this.state.detached = true;
+    this.floating = floating; this.state.detached = true; this.updateFloatingMenu();
     floating.on('resize', () => this.applyBounds());
     const sync = (fullscreen: boolean) => { this.state.fullscreen = fullscreen; this.applyBounds(); this.emit(); };
     floating.on('enter-full-screen', () => sync(true)); floating.on('leave-full-screen', () => sync(false));
     floating.on('close', () => this.dock(false));
     this.applyBounds(); this.emit(); this.view.webContents.focus();
+  }
+  private updateFloatingMenu() {
+    if (!this.floating) return;
+    const data = this.browsing.get(this.store.activeId);
+    this.floating.setMenu(Menu.buildFromTemplate([{ label: 'Browser', submenu: [
+      { label: 'Address…', click: () => this.focusShell('address') },
+      { label: 'New tab', click: () => { void this.newTab().catch(error => this.reportTabError(error)); } },
+      { label: 'Close tab', click: () => { void this.closeTab(data.activeTabId).catch(error => this.reportTabError(error)); } },
+      { label: 'Back', click: () => this.action('back') }, { label: 'Forward', click: () => this.action('forward') },
+      { label: 'Reload', accelerator: 'Ctrl+R', click: () => this.action('reload') },
+      { label: 'Zoom in', click: () => this.action('zoom-in') }, { label: 'Zoom out', click: () => this.action('zoom-out') }, { label: 'Reset zoom', click: () => this.action('zoom-reset') },
+      { label: 'Full screen (F11 / Esc)', click: () => this.action('fullscreen') },
+      { label: 'History', click: () => this.focusShell('history') }, { label: 'Permissions', click: () => this.focusShell('permissions') },
+      { label: 'Return to workspace', click: () => this.dock() }, { label: 'Lock browser', click: () => { void this.lock(); } }
+    ] }, { label: 'Tabs', submenu: data.tabs.map(tab => ({ label: tab.title.replaceAll('&', '&&').slice(0, 80), type: 'radio' as const, checked: tab.id === data.activeTabId, click: () => { void this.selectTab(tab.id).catch(error => this.reportTabError(error)); } })) }]));
   }
   private dock(close = true) {
     const floating = this.floating; if (!floating) return;
@@ -370,6 +458,7 @@ export class AccountBrowser {
     this.applyBounds();
   }
   private applyBounds() {
+    for (const view of this.views.values()) if (view !== this.view) view.setVisible(false);
     if (!this.view) return;
     if (this.floating) { const { width, height } = this.floating.getContentBounds(); this.view.setBounds({ x: 0, y: 0, width, height }); this.view.setVisible(this.allowed()); return; }
     this.view.setVisible(!!this.bounds && this.allowed() && !!this.state.url);
@@ -386,5 +475,5 @@ export class AccountBrowser {
     await this.lock(); const ses = this.getSession(id); await ses.clearStorageData(); await ses.clearCache(); await ses.clearAuthCache();
     this.state.cookieCount = 0; this.log('Cookies, site storage, cache and HTTP authentication cleared for this profile.');
   }
-  async dispose() { clearInterval(this.timer); await this.lock(); }
+  async dispose() { clearInterval(this.timer); await this.lock(); this.browsing.flush(); }
 }
