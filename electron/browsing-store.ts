@@ -55,6 +55,13 @@ export class BrowsingStore {
     if (!['left', 'right'].includes(direction)) throw new Error('Invalid tab direction.');
     this.update(id, data => { const from = data.tabs.findIndex(t => t.id === tabId); if (from < 0) throw new Error('Tab not found in this profile.'); const to = from + (direction === 'left' ? -1 : 1); if (to >= 0 && to < data.tabs.length) [data.tabs[from], data.tabs[to]] = [data.tabs[to], data.tabs[from]]; });
   }
+  reorder(id: string, tabId: string, targetId: string) {
+    this.update(id, data => {
+      const from = data.tabs.findIndex(tab => tab.id === tabId), to = data.tabs.findIndex(tab => tab.id === targetId);
+      if (from < 0 || to < 0) throw new Error('Tab not found in this profile.');
+      const [tab] = data.tabs.splice(from, 1); data.tabs.splice(to, 0, tab);
+    });
+  }
   setPage(id: string, tabId: string, input: string, title: string, visit = false) {
     const url = normalizeURL(input, this.testMode);
     this.update(id, data => {

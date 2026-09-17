@@ -183,7 +183,7 @@ try {
   assert.equal((await api('getState')).runtime.fullscreen, false);
   const floatingReadings = await guest('({locale:navigator.language,timezone:Intl.DateTimeFormat().resolvedOptions().timeZone})');
   assert.equal(floatingReadings.locale, 'en-US'); assert.equal(floatingReadings.timezone, 'America/New_York');
-  await app.evaluate(({ BaseWindow, BrowserWindow }) => BaseWindow.getAllWindows().find(w=>!BrowserWindow.fromId(w.id)).close());
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w=>w.webContents.getURL().endsWith('#floating')).close());
   assert.equal((await api('getState')).runtime.detached, false);
   assert.equal(await app.evaluate(({ webContents }, id) => webContents.fromId(id).isDestroyed(), guestId), false);
   await capture('browser-controls.png');
@@ -195,7 +195,7 @@ try {
   await page.waitForTimeout(300);
   assert.equal((await api('getState')).runtime.detached, true);
   assert.equal((await api('getState')).runtime.fullscreen, true);
-  assert.equal(await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].isFullScreen()), false);
+  assert.equal(await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows().find(w=>!w.webContents.getURL().endsWith('#floating')).isFullScreen()), false);
   await guest('document.exitFullscreen()'); await page.waitForTimeout(300);
   await api('browserAction', 'dock');
   pass('zoom keyboard/toolbar and floating full-screen/close retain the same regional browser');
@@ -264,10 +264,40 @@ try {
   assert.equal((await api('getState')).browsing.tabs.length, 2);
   await api('selectTab', firstTab);
   assert.equal(await guest('globalThis.tabMarker'), 'retained');
+  await page.locator(`[data-tab-id="${secondTab}"]`).dragTo(page.locator(`[data-tab-id="${firstTab}"]`));
+  assert.deepEqual((await api('getState')).browsing.tabs.map(tab=>tab.id), [secondTab, firstTab]);
   await api('browserAction', 'detach');
-  await api('selectTab', secondTab);
+  let floatingPage;
+  for (let attempt=0; attempt<50; attempt++) { floatingPage=app.windows().find(w=>w.url().endsWith('#floating')); if (floatingPage) break; await page.waitForTimeout(100); }
+  assert.ok(floatingPage, 'Floating browser shell must open');
+  await floatingPage.getByRole('tab').first().waitFor();
+  await floatingPage.locator(`[data-tab-id="${secondTab}"] [role=tab]`).click();
   assert.equal((await api('getState')).runtime.detached, true);
   assert.match((await api('getState')).runtime.url, /tab=second/);
+  await floatingPage.locator(`[data-tab-id="${firstTab}"]`).dragTo(floatingPage.locator(`[data-tab-id="${secondTab}"]`));
+  assert.deepEqual((await api('getState')).browsing.tabs.map(tab=>tab.id), [firstTab, secondTab]);
+  await floatingPage.getByLabel('Website address').fill(`${base}/next?tab=floating`);
+  await floatingPage.getByLabel('Website address').press('Enter'); await page.waitForTimeout(400);
+  assert.match((await api('getState')).runtime.url, /tab=floating/);
+  await floatingPage.getByLabel('Website address').fill('tab=second');
+  await floatingPage.getByRole('option').click(); await page.waitForTimeout(400);
+  assert.match((await api('getState')).runtime.url, /tab=second/);
+  await assert.rejects(() => floatingPage.evaluate(() => window.regiondesk.createProfile()), /Untrusted/);
+  const guestBounds = await app.evaluate(({ BrowserWindow }) => {
+    const w=BrowserWindow.getAllWindows().find(w=>w.webContents.getURL().endsWith('#floating'));
+    return w.contentView.children.filter(v=>'webContents' in v && v.webContents.getURL().includes('tab=second')).map(v=>v.getBounds());
+  });
+  assert.ok(guestBounds[0].y >= 100, 'Page must sit below visible tabs and address controls');
+  if (process.env.REGIONDESK_CAPTURE === '1') {
+    await floatingPage.screenshot({path:path.join(review,'floating-tabs.png')});
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w=>w.webContents.getURL().endsWith('#floating')).setContentSize(600,500));
+    await page.waitForTimeout(200); await floatingPage.screenshot({path:path.join(review,'floating-tabs-compact.png')});
+  }
+  await floatingPage.getByRole('button', {name:'New tab',exact:true}).click();
+  await floatingPage.getByRole('heading',{name:'New tab',exact:true}).waitFor();
+  assert.equal((await api('getState')).browsing.tabs.length, 3);
+  await floatingPage.getByRole('button',{name:'Close tab 3',exact:true}).click();
+  pass('drag reorder works in both windows; floating tabs, address/history navigation and blank-tab controls are usable');
   await api('browserAction', 'dock');
   await api('selectTab', firstTab);
   await guest("window.open('/popup?tab=popup'); true"); await page.waitForTimeout(500);

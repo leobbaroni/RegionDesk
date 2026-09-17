@@ -6,7 +6,7 @@
 
 A Windows desktop workspace for isolated browser sessions, verified proxy routing and regional preferences.
 
-![Version](https://img.shields.io/badge/version-0.1.5-c2b5ff?style=flat-square)
+![Version](https://img.shields.io/badge/version-0.1.6-c2b5ff?style=flat-square)
 ![Platform](https://img.shields.io/badge/platform-Windows_x64-0078D4?style=flat-square)
 ![Stack](https://img.shields.io/badge/Electron-React_%2B_TypeScript-47848F?style=flat-square)
 
@@ -66,7 +66,7 @@ No traffic is sent to account websites until verification succeeds. Provider com
 
 ```powershell
 npm run package
-Expand-Archive release/RegionDesk-0.1.5-Windows.zip release/RegionDesk-Windows
+Expand-Archive release/RegionDesk-0.1.6-Windows.zip release/RegionDesk-Windows
 .\release\RegionDesk-Windows\RegionDesk.exe
 ```
 
@@ -77,11 +77,11 @@ Keep all extracted files together. Close the app before replacing files, and reu
 | Action | Control |
 | --- | --- |
 | Focus the address bar | `Ctrl+L`; type to search this profile's history |
-| Manage tabs | `Ctrl+T`, `Ctrl+W`, `Ctrl+Tab` / `Ctrl+Shift+Tab`; Shift+Left/Right on a focused tab reorders it |
+| Manage tabs | Drag tabs to reorder; `Ctrl+T`, `Ctrl+W`, `Ctrl+Tab` / `Ctrl+Shift+Tab`; Shift+Left/Right also reorders |
 | Browse history | **History** or `Ctrl+H` |
 | Zoom in / out | Toolbar buttons or `Ctrl` + `+` / `-` while the page is focused |
 | Reset zoom | Click the zoom percentage or press `Ctrl+0` |
-| Open a floating browser | **Pop out**; closing it returns the page to the workspace |
+| Open a floating browser | **Pop out** for tabs, address bar and page controls; closing it returns the page to the workspace |
 | Enter / leave full screen | **Full screen**, `F11`, or `Esc` to leave |
 | Edit site permissions | **Permissions** → profile settings → save and reverify |
 | Copy, paste and navigate | Right-click the page for its native menu |
@@ -125,7 +125,7 @@ Embedded-browser compatibility can differ from Chrome. Downloads and external ap
 | `node scripts/package-smoke.mjs` | Check the unpacked packaged app |
 | `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/portable-smoke.ps1` | Verify normal launch from the extracted ZIP |
 
-The **v0.1.5 verification run** passed 10 unit tests, 26 desktop test groups and both packaged-launch checks. It covers multiple live tabs, popup handling, per-profile history, address suggestions and saved-tab restoration. The earlier v0.1.4 live proxy check confirmed matching outgoing IP, language and timezone before and after moving a page into the floating window. These are recorded results, not continuous-integration badges.
+The **v0.1.6 verification run** passed 10 unit tests, 27 desktop test groups and both packaged-launch checks. It covers drag reordering in both windows, floating tabs and address/history controls, multiple live tabs, popup handling, per-profile history and saved-tab restoration. The earlier v0.1.4 live proxy check confirmed matching outgoing IP, language and timezone before and after moving a page into the floating window. These are recorded results, not continuous-integration badges.
 
 Desktop tests require OpenSSL; the default Windows path uses Git's bundled copy. Set `OPENSSL_BIN` to override it. Tests use separate data under `.test-data/` and a fixture-specific certificate pin that packaged builds ignore.
 

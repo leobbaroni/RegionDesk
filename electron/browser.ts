@@ -1,10 +1,11 @@
-import { app, BaseWindow, BrowserWindow, Menu, WebContentsView, session, type Session, type WebContents } from 'electron';
+import { app, BrowserWindow, Menu, WebContentsView, session, type Session, type WebContents } from 'electron';
+import path from 'node:path';
 import { Server as ProxyServer } from 'proxy-chain';
 import { isIP } from 'node:net';
 import { randomUUID, X509Certificate } from 'node:crypto';
 import { connectionError, isPrivateHost, normalizeURL, proxyURL } from './core';
 import type { ProfileStore } from './store';
-import type { Activity, Bounds, BrowserEvidence, NetworkEvidence, RuntimeState } from '../shared/types';
+import type { Activity, AppState, Bounds, BrowserEvidence, NetworkEvidence, RuntimeState } from '../shared/types';
 import { defaultPermissions, type BrowsingState } from '../shared/types';
 import { BrowsingStore } from './browsing-store';
 
@@ -38,7 +39,8 @@ export class AccountBrowser {
   private bounds: Bounds | null = null;
   private abort: AbortController | null = null;
   private timer: NodeJS.Timeout;
-  private floating: BaseWindow | null = null;
+  private floating: BrowserWindow | null = null;
+  private floatingBounds: Bounds | null = null;
   private nextCheck = 0;
   private retryAt = 0;
   private retryCount = 0;
@@ -62,8 +64,12 @@ export class AccountBrowser {
   }
   private reportTabError(error: unknown) { this.log(error instanceof Error ? error.message : 'The tab action failed.', 'warning'); }
   private focusShell(command: 'address' | 'history' | 'permissions') {
-    this.win.show(); this.win.focus(); this.win.webContents.focus(); this.win.webContents.send('browser:command', command);
+    const target = command === 'address' && this.floating ? this.floating : this.win;
+    target.show(); target.focus(); target.webContents.focus(); target.webContents.send('browser:command', command);
   }
+  openWorkspace(command: 'history' | 'permissions') { this.focusShell(command); }
+  isFloatingShell(wc: WebContents) { return !!this.floating && !this.floating.isDestroyed() && wc === this.floating.webContents; }
+  emitFloatingState(state: AppState) { if (this.floating && !this.floating.isDestroyed()) this.floating.webContents.send('state:update', state); }
   private activateView(view: WebContentsView | null) {
     if (this.view === view) return;
     const previous = this.view;
@@ -101,6 +107,7 @@ export class AccountBrowser {
     await this.showActiveTab(); this.emit();
   }); }
   moveTab(id: string, direction: 'left' | 'right') { this.browsing.move(this.store.activeId, id, direction); this.updateFloatingMenu(); this.emit(); }
+  reorderTab(id: string, targetId: string) { this.browsing.reorder(this.store.activeId, id, targetId); this.updateFloatingMenu(); this.emit(); }
   private cycleTab(direction: number) {
     const data = this.browsing.get(this.store.activeId), index = data.tabs.findIndex(t => t.id === data.activeTabId);
     void this.selectTab(data.tabs[(index + direction + data.tabs.length) % data.tabs.length].id).catch(error => this.reportTabError(error));
@@ -417,13 +424,20 @@ export class AccountBrowser {
   }
   private detach() {
     if (!this.view || this.floating) { this.floating?.focus(); return; }
-    const floating = new BaseWindow({ width: 1200, height: 850, minWidth: 600, minHeight: 400, backgroundColor: '#101113', title: `${this.store.active.name} — RegionDesk` });
+    const floating = new BrowserWindow({ width: 1200, height: 850, minWidth: 600, minHeight: 400, backgroundColor: '#101113', title: `${this.store.active.name} — RegionDesk`, autoHideMenuBar: true,
+      webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false, webSecurity: true } });
+    floating.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    floating.webContents.on('will-navigate', event => event.preventDefault());
     this.win.contentView.removeChildView(this.view); floating.contentView.addChildView(this.view);
     this.floating = floating; this.state.detached = true; this.updateFloatingMenu();
     floating.on('resize', () => this.applyBounds());
     const sync = (fullscreen: boolean) => { this.state.fullscreen = fullscreen; this.applyBounds(); this.emit(); };
     floating.on('enter-full-screen', () => sync(true)); floating.on('leave-full-screen', () => sync(false));
     floating.on('close', () => this.dock(false));
+    const loaded = process.env.REGIONDESK_DEV_URL && !app.isPackaged
+      ? floating.loadURL(`${process.env.REGIONDESK_DEV_URL.replace(/#.*$/, '')}#floating`)
+      : floating.loadFile(path.join(__dirname, '../dist/index.html'), { hash: 'floating' });
+    void loaded.catch(error => { this.reportTabError(error); if (this.floating === floating) this.dock(); });
     this.applyBounds(); this.emit(); this.view.webContents.focus();
   }
   private updateFloatingMenu() {
@@ -443,24 +457,26 @@ export class AccountBrowser {
   }
   private dock(close = true) {
     const floating = this.floating; if (!floating) return;
-    this.floating = null;
+    this.floating = null; this.floatingBounds = null;
     if (this.view) { floating.contentView.removeChildView(this.view); if (!this.win.isDestroyed()) this.win.contentView.addChildView(this.view); }
     this.state.detached = false; this.state.fullscreen = false;
     if (close && !floating.isDestroyed()) floating.close();
     this.applyBounds(); this.emit();
   }
-  setBounds(bounds: Bounds | null) {
+  setBounds(bounds: Bounds | null, floating = false) {
+    const target = floating ? this.floating : this.win; if (!target) return;
     if (bounds) {
-      const area = this.win.getContentBounds();
+      const area = target.getContentBounds();
       if (!Object.values(bounds).every(Number.isFinite) || bounds.x < 0 || bounds.y < 0 || bounds.width < 0 || bounds.height < 0 || bounds.x + bounds.width > area.width + 2 || bounds.y + bounds.height > area.height + 2) return;
-      this.bounds = { x: Math.round(bounds.x), y: Math.round(bounds.y), width: Math.round(bounds.width), height: Math.round(bounds.height) };
-    } else this.bounds = null;
+      bounds = { x: Math.round(bounds.x), y: Math.round(bounds.y), width: Math.round(bounds.width), height: Math.round(bounds.height) };
+    }
+    if (floating) this.floatingBounds = bounds; else this.bounds = bounds;
     this.applyBounds();
   }
   private applyBounds() {
     for (const view of this.views.values()) if (view !== this.view) view.setVisible(false);
     if (!this.view) return;
-    if (this.floating) { const { width, height } = this.floating.getContentBounds(); this.view.setBounds({ x: 0, y: 0, width, height }); this.view.setVisible(this.allowed()); return; }
+    if (this.floating) { if (this.floatingBounds) this.view.setBounds(this.floatingBounds); this.view.setVisible(!!this.floatingBounds && this.allowed() && !!this.state.url); return; }
     this.view.setVisible(!!this.bounds && this.allowed() && !!this.state.url);
     if (this.bounds) this.view.setBounds(this.bounds);
   }

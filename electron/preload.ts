@@ -14,6 +14,8 @@ const api: RegionDeskAPI = {
   selectTab: id => ipcRenderer.invoke('tabs:select', id),
   closeTab: id => ipcRenderer.invoke('tabs:close', id),
   moveTab: (id, direction) => ipcRenderer.invoke('tabs:move', id, direction),
+  reorderTab: (id, targetId) => ipcRenderer.invoke('tabs:reorder', id, targetId),
+  openWorkspace: screen => ipcRenderer.invoke('workspace:open', screen),
   clearHistory: () => ipcRenderer.invoke('history:clear'),
   removeHistory: url => ipcRenderer.invoke('history:remove', url),
   onBrowserCommand: callback => { const handler = (_event: Electron.IpcRendererEvent, command: 'address' | 'history' | 'permissions') => callback(command); ipcRenderer.on('browser:command', handler); return () => ipcRenderer.removeListener('browser:command', handler); },

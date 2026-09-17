@@ -23,10 +23,12 @@ let queue = Promise.resolve<unknown>(undefined);
 const providers: Record<string, string> = { 'webshare-free': 'https://www.webshare.io/free-proxy', 'webshare-isp': 'https://www.webshare.io/static-residential-proxy', iproyal: 'https://iproyal.com/pricing/static-residential-proxies/' };
 
 function state(): AppState { return { profiles: store.profiles, activeId: store.activeId, runtime: manager.state, activity: manager.activity, browsing: manager.browsingState, secureStorage: safeStorage.isEncryptionAvailable(), version: app.getVersion() }; }
-function emit() { if (win && !win.isDestroyed()) win.webContents.send('state:update', state()); }
+function emit() { if (win && !win.isDestroyed()) { const current = state(); win.webContents.send('state:update', current); manager.emitFloatingState(current); } }
 function handle(name: string, fn: (...args: any[]) => unknown, serial = true) {
   ipcMain.handle(name, (event, ...args) => {
-    if (!win || event.sender !== win.webContents || event.senderFrame !== win.webContents.mainFrame) throw new Error('Untrusted IPC caller.');
+    const floatingChannels = ['state:get', 'tabs:new', 'tabs:select', 'tabs:close', 'tabs:move', 'tabs:reorder', 'browser:navigate', 'browser:action', 'workspace:open'];
+    const trusted = win && (event.sender === win.webContents || floatingChannels.includes(name) && manager.isFloatingShell(event.sender));
+    if (!trusted || event.senderFrame !== event.sender.mainFrame) throw new Error('Untrusted IPC caller.');
     const run = async () => { try { return await fn(...args); } catch (error) { throw new Error(error instanceof Error ? error.message : 'The action could not be completed.'); } };
     if (!serial) return run();
     const result = queue.then(run, run); queue = result.catch(() => {}); return result;
@@ -59,13 +61,20 @@ async function createWindow() {
   handle('tabs:select', async id => { await manager.selectTab(id); return state(); });
   handle('tabs:close', async id => { await manager.closeTab(id); return state(); });
   handle('tabs:move', (id, direction) => { manager.moveTab(id, direction); return state(); });
+  handle('tabs:reorder', (id, targetId) => { manager.reorderTab(id, targetId); return state(); });
+  handle('workspace:open', screen => { if (screen !== 'history' && screen !== 'permissions') throw new Error('Unknown workspace screen.'); manager.openWorkspace(screen); });
   handle('history:remove', url => { browsing.removeHistory(store.activeId, url); emit(); return state(); });
   handle('history:clear', async () => {
     const result = await dialog.showMessageBox(win!, { type: 'warning', title: 'Clear browsing history', message: 'Clear history and address suggestions for this profile?', detail: 'Open tabs, cookies and other profiles are kept.', buttons: ['Cancel', 'Clear history'], defaultId: 0, cancelId: 0 });
     if (result.response === 1) { browsing.clearHistory(store.activeId); emit(); } return state();
   });
   handle('browser:action', action => manager.action(action), false);
-  handle('browser:bounds', bounds => manager.setBounds(bounds), false);
+  ipcMain.handle('browser:bounds', (event, bounds) => {
+    if (event.senderFrame !== event.sender.mainFrame) throw new Error('Untrusted IPC caller.');
+    if (event.sender === win?.webContents) manager.setBounds(bounds);
+    else if (manager.isFloatingShell(event.sender)) manager.setBounds(bounds, true);
+    else throw new Error('Untrusted IPC caller.');
+  });
   handle('browser:inspect', async () => { await manager.inspect(); return state(); });
   handle('draft:confirm-discard', async () => {
     const result = await dialog.showMessageBox(win!, { type: 'question', title: 'Unsaved changes', message: 'Discard your unsaved changes?', detail: 'Keep editing to save the changes before leaving this screen.', buttons: ['Keep editing', 'Discard changes'], defaultId: 0, cancelId: 0 });

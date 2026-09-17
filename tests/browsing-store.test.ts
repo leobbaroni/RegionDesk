@@ -37,6 +37,11 @@ test('history removal and clearing leave saved tabs and other profiles untouched
     store.clearHistory(a);
     assert.equal(store.get(a).tabs[0].url, 'https://example.com/');
     assert.equal(store.get(b).history.length, 1);
+    const original = store.get(a).activeTabId, second = store.newTab(a, 'https://example.com/second'), third = store.newTab(a, 'https://example.com/third');
+    store.reorder(a, original, third);
+    assert.deepEqual(store.get(a).tabs.map(tab => tab.id), [second, third, original]);
+    assert.equal(store.get(a).activeTabId, third);
+    assert.throws(() => store.reorder(b, original, store.get(b).activeTabId), /not found/);
   } finally { cleanup(); }
 });
 

@@ -63,3 +63,9 @@ The final ZIP-extracted v0.1.4 passed both package checks. A native launch with 
 The production build, 10 unit tests and 26 desktop groups passed. New coverage checks live page retention across tab switching, popup-created tabs, switching tabs in a floating window, keyboard history suggestions, searchable/removable profile history, profile separation and restart restoration of tab IDs/order/selection without page requests before verification. Store tests cover reordering, clearing history independently of tabs, closing the last tab, and invalid destinations. Existing route-failure, lease-expiry, permission, zoom and fullscreen checks remain passing.
 
 Both packaged launch checks passed for v0.1.5, including native sandboxed launch of the executable extracted from `RegionDesk-0.1.5-Windows.zip` into `release/RegionDesk-Windows`. The desktop shortcut had still targeted v0.1.1; it now points to that stable folder. No new live-provider or TikTok check was performed in this release.
+
+## v0.1.6 floating browser and draggable tabs: 18 September 2026
+
+Build, 10 unit tests and 27 desktop groups passed. Real drag gestures reorder tabs in the workspace and floating browser; both windows share the saved order. The floating shell provides visible tab switching, new/close tabs, address entry and history suggestions. Tests check page placement below the controls, preserved page state, native and website fullscreen, close-to-dock, and that the floating shell cannot invoke profile-management IPC. Screenshots cover 1184px and 600px content widths.
+
+Both v0.1.6 packaged-launch checks passed, including native sandboxed launch from the final ZIP at the stable portable path. The desktop shortcut reopened the updated app. No new live-provider test was performed.

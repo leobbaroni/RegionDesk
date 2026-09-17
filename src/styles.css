@@ -316,3 +316,23 @@ td { padding: 17px; border-top: 1px solid #2a2c34; font-size: 11px; color: #bfc1
 .history-empty { padding: 48px 24px; text-align: center; color: #a3a6b2; }
 .history-empty h2 { color: var(--fg); margin-top: 16px; }
 .history-empty p { font-size: 12px; }
+.browser-tab.dragging { opacity: .45; }
+.browser-tab.drop-target { box-shadow: inset 0 -3px var(--accent); background: #353044; }
+.browser-tab [role=tab] { cursor: grab; }
+.browser-tab [role=tab]:active { cursor: grabbing; }
+.floating-browser { height: 100%; display: flex; flex-direction: column; min-width: 0; overflow: hidden; background: var(--bg); }
+.floating-browser .tab-strip { min-height: 40px; }
+.floating-browser .browser-tab { flex-basis: 200px; }
+.floating-browser .browser-toolbar { flex-shrink: 0; padding: 9px 12px; }
+.floating-browser .browser-controls { padding: 5px 12px; }
+.floating-browser .browser-controls > button { display: flex; align-items: center; gap: 6px; padding: 7px; background: transparent; border: 0; border-radius: 4px; font-size: 11px; }
+.floating-browser .browser-controls > button:hover { background: #303139; }
+.floating-profile { margin-right: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; color: var(--muted); font-size: 11px; }
+.floating-page { flex: 1; min-height: 0; position: relative; }
+.floating-new-tab { padding: 60px 24px; text-align: center; }
+.floating-new-tab h1 { font-size: 24px; margin-bottom: 12px; }
+.floating-new-tab p { color: #a3a6b2; margin-bottom: 24px; }
+.floating-error { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: #3b2428; color: #ffd3d9; }
+.floating-error span { flex: 1; }
+.floating-error button { background: transparent; border: 0; }
+.floating-loading { padding: 30px; }

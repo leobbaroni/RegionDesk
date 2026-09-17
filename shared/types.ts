@@ -58,6 +58,8 @@ export interface RegionDeskAPI {
   selectTab(id: string): Promise<AppState>;
   closeTab(id: string): Promise<AppState>;
   moveTab(id: string, direction: 'left' | 'right'): Promise<AppState>;
+  reorderTab(id: string, targetId: string): Promise<AppState>;
+  openWorkspace(screen: 'history' | 'permissions'): Promise<void>;
   clearHistory(): Promise<AppState>;
   removeHistory(url: string): Promise<AppState>;
   onBrowserCommand(callback: (command: 'address' | 'history' | 'permissions') => void): () => void;

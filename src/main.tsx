@@ -3,4 +3,5 @@ import ReactDOM from 'react-dom/client';
 import '@fontsource-variable/inter';
 import './styles.css';
 import App from './App';
-ReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode><App /></React.StrictMode>);
+import FloatingBrowser from './FloatingBrowser';
+ReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode>{location.hash === '#floating' ? <FloatingBrowser /> : <App />}</React.StrictMode>);
