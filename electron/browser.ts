@@ -104,6 +104,16 @@ export class AccountBrowser {
     if (this.view && !this.view.webContents.isDestroyed()) return;
     const profile = this.store.active;
     const ses = this.getSession();
+    // Read genuine engine/device metadata from our trusted, secure app renderer.
+    // Omitting metadata from CDP's language/UA override clears Client Hints.
+    const userAgentMetadata = await this.win.webContents.executeJavaScript(`(async () => {
+      const ua = navigator.userAgentData;
+      if (!ua) throw new Error('Native browser metadata is unavailable.');
+      const native = await ua.getHighEntropyValues(['architecture', 'bitness', 'model', 'platformVersion', 'uaFullVersion', 'fullVersionList', 'wow64', 'formFactors']);
+      return { brands: native.brands, fullVersionList: native.fullVersionList, fullVersion: native.uaFullVersion,
+        platform: native.platform, platformVersion: native.platformVersion, architecture: native.architecture,
+        model: native.model, mobile: native.mobile, bitness: native.bitness, wow64: native.wow64, formFactors: native.formFactors };
+    })()`);
     const userAgent = ses.getUserAgent().replace(/\sElectron\/[^\s]+/g, '').replace(/\sRegionDesk\/[^\s]+/gi, '').replace(/\sregiondesk\/[^\s]+/gi, '');
     ses.setUserAgent(userAgent, profile.locale);
     const view = new WebContentsView({ webPreferences: { session: ses, sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true, allowRunningInsecureContent: false, devTools: testMode } });
@@ -121,7 +131,7 @@ export class AccountBrowser {
       if (method !== 'Target.attachedToTarget') return;
       const child = params.sessionId as string;
       void (async () => {
-        await wc.debugger.sendCommand('Emulation.setUserAgentOverride', { userAgent, acceptLanguage: profile.locale }, child);
+        await wc.debugger.sendCommand('Emulation.setUserAgentOverride', { userAgent, acceptLanguage: profile.locale, userAgentMetadata }, child);
         if (params.targetInfo.type === 'iframe' || params.targetInfo.type === 'page') {
           await wc.debugger.sendCommand('Emulation.setTimezoneOverride', { timezoneId: profile.timezone }, child);
           await wc.debugger.sendCommand('Emulation.setLocaleOverride', { locale: profile.locale }, child);
@@ -134,7 +144,7 @@ export class AccountBrowser {
     await wc.debugger.sendCommand('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: true, flatten: true });
     await wc.debugger.sendCommand('Emulation.setTimezoneOverride', { timezoneId: profile.timezone });
     await wc.debugger.sendCommand('Emulation.setLocaleOverride', { locale: profile.locale });
-    await wc.debugger.sendCommand('Emulation.setUserAgentOverride', { userAgent, acceptLanguage: profile.locale });
+    await wc.debugger.sendCommand('Emulation.setUserAgentOverride', { userAgent, acceptLanguage: profile.locale, userAgentMetadata });
     await wc.debugger.sendCommand('Emulation.setGeolocationOverride', { latitude: profile.latitude, longitude: profile.longitude, accuracy: 5000 });
     wc.debugger.on('detach', () => { if (this.view === view && !wc.isDestroyed() && this.state.status === 'ready') void this.lock('Browser regional settings were detached. Verify again before browsing.', 'error'); });
     const navigationAllowed = (url: string) => { try { normalizeURL(url, testMode); return this.allowed(); } catch { return false; } };
@@ -153,6 +163,7 @@ export class AccountBrowser {
       this.state.canGoBack = wc.navigationHistory.canGoBack(); this.state.canGoForward = wc.navigationHistory.canGoForward(); this.emit();
     };
     wc.on('did-start-loading', sync); wc.on('did-stop-loading', sync); wc.on('did-navigate', sync); wc.on('did-navigate-in-page', sync); wc.on('page-title-updated', sync);
+    wc.on('did-finish-load', () => { if (this.view === view && this.allowed()) void this.inspect().catch(() => {}); });
     wc.on('did-fail-load', (_e, code, _desc, _url, isMainFrame) => {
       if (!isMainFrame || code === -3 || this.view !== view) return;
       if ([-130, -111, -102, -105, -118].includes(code)) void this.lock('The page lost its connection. Check the proxy and verify again.', 'error');
@@ -247,7 +258,7 @@ export class AccountBrowser {
   async inspect() {
     const wc = this.view?.webContents;
     if (!wc || wc.isDestroyed()) return;
-    const result = await wc.debugger.sendCommand('Runtime.evaluate', { expression: `JSON.stringify({language:navigator.language,languages:[...navigator.languages],timezone:Intl.DateTimeFormat().resolvedOptions().timeZone,locale:Intl.DateTimeFormat().resolvedOptions().locale,userAgent:navigator.userAgent,platform:navigator.platform,width:screen.width,height:screen.height,hardwareConcurrency:navigator.hardwareConcurrency})`, returnByValue: true });
+    const result = await wc.debugger.sendCommand('Runtime.evaluate', { expression: `JSON.stringify({language:navigator.language,languages:[...navigator.languages],timezone:Intl.DateTimeFormat().resolvedOptions().timeZone,locale:Intl.DateTimeFormat().resolvedOptions().locale,userAgent:navigator.userAgent,platform:navigator.platform,width:screen.width,height:screen.height,hardwareConcurrency:navigator.hardwareConcurrency,webdriver:navigator.webdriver,clientHints:navigator.userAgentData?.toJSON()})`, returnByValue: true });
     if (typeof result.result?.value === 'string') this.state.browser = { ...JSON.parse(result.result.value), webRTCPolicy: wc.getWebRTCIPHandlingPolicy() } as BrowserEvidence;
     this.state.cookieCount = (await this.getSession().cookies.get({})).length; this.emit();
   }

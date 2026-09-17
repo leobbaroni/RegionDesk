@@ -19,6 +19,8 @@ export interface BrowserEvidence {
   language: string; languages: string[]; timezone: string; userAgent: string;
   platform: string; width: number; height: number; hardwareConcurrency: number;
   webRTCPolicy: string; locale: string;
+  webdriver?: boolean;
+  clientHints?: { brands: { brand: string; version: string }[]; mobile: boolean; platform: string };
 }
 export interface RuntimeState {
   status: 'locked' | 'checking' | 'ready' | 'error';

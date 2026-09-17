@@ -14,16 +14,18 @@ const dataDir = path.join(root, '.test-data', randomUUID());
 const review = path.join(root, '.impeccable', 'review');
 await fs.mkdir(dataDir, { recursive: true }); await fs.mkdir(review, { recursive: true });
 let country = 'US', overrideTimezone = '', proxyRequests = 0, directRequests = 0, authenticationChallenges = 0;
+let browserHeaders;
 const keyFile = path.join(dataDir, 'fixture-key.pem'), certFile = path.join(dataDir, 'fixture-cert.pem');
 execFileSync(process.env.OPENSSL_BIN || 'C:\\Program Files\\Git\\usr\\bin\\openssl.exe', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', keyFile, '-out', certFile, '-days', '1', '-subj', '/CN=RegionDesk local fixture', '-addext', 'subjectAltName=IP:127.0.0.1,DNS:regiondesk.test,DNS:regiondesk-frame.test'], { stdio: 'ignore' });
 const cert = await fs.readFile(certFile), key = await fs.readFile(keyFile);
 const fingerprint = new X509Certificate(cert).fingerprint256;
 const tunnels = new Set(), tunnelPorts = new Set();
 const fixture = https.createServer({ key, cert }, (req, res) => {
+  if (req.url === '/page') browserHeaders = { language: req.headers['accept-language'] };
   if (!tunnelPorts.has(req.socket.remotePort)) directRequests++;
   if (req.url === '/geo') { res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify({ success: true, ip: '203.0.113.42', country_code: country, city: country === 'US' ? 'New York' : 'London', timezone: { id: overrideTimezone || (country === 'US' ? 'America/New_York' : 'Europe/London') }, connection: { isp: 'LOCAL TEST FIXTURE — not a real proxy' } })); return; }
-  if (req.url === '/worker.js') { res.setHeader('Content-Type', 'text/javascript'); res.end('postMessage({language:navigator.language,timezone:Intl.DateTimeFormat().resolvedOptions().timeZone,locale:Intl.DateTimeFormat().resolvedOptions().locale,userAgent:navigator.userAgent})'); return; }
-  if (req.url === '/frame') { res.setHeader('Content-Type', 'text/html'); res.end('<script>parent.postMessage({language:navigator.language,timezone:Intl.DateTimeFormat().resolvedOptions().timeZone},"*")</script>'); return; }
+  if (req.url === '/worker.js') { res.setHeader('Content-Type', 'text/javascript'); res.end('postMessage({language:navigator.language,timezone:Intl.DateTimeFormat().resolvedOptions().timeZone,locale:Intl.DateTimeFormat().resolvedOptions().locale,userAgent:navigator.userAgent,clientHints:navigator.userAgentData?.toJSON()})'); return; }
+  if (req.url === '/frame') { res.setHeader('Content-Type', 'text/html'); res.end('<script>parent.postMessage({language:navigator.language,timezone:Intl.DateTimeFormat().resolvedOptions().timeZone,clientHints:navigator.userAgentData?.toJSON()},"*")</script>'); return; }
   res.setHeader('Content-Type', 'text/html');
   res.end('<!doctype html><html><head><title>Local verification fixture</title></head><body style="background:#172023;color:#eff;font:16px sans-serif;padding:36px"><h1>Local browser test</h1><p>This page is a local test fixture, not TikTok or a US connection.</p><input id="upload" type="file"><a href="/next">Next page</a><button onclick="window.open(\'/popup\')">Popup</button></body></html>');
 });
@@ -150,15 +152,23 @@ try {
   pass('authenticated HTTP CONNECT with HTTPS, country check, timezone, locale, WebRTC policy and encrypted credentials');
   await api('navigate', `${base}/page`);
   await page.waitForTimeout(700);
+  const nativeHints = await page.evaluate(() => navigator.userAgentData.toJSON());
+  assert.deepEqual(await guest('navigator.userAgentData.toJSON()'), nativeHints, 'Regional preferences must preserve native Client Hints');
+  const nativeHighHints = await page.evaluate(() => navigator.userAgentData.getHighEntropyValues(['architecture', 'bitness', 'platformVersion', 'fullVersionList', 'wow64']));
+  assert.deepEqual(await guest("navigator.userAgentData.getHighEntropyValues(['architecture','bitness','platformVersion','fullVersionList','wow64'])"), nativeHighHints);
+  assert.equal(browserHeaders.language, 'en-US');
+  pass('regional overrides preserve native low/high-entropy Client Hints APIs and the configured HTTPS language');
   assert.equal(await guest('typeof window.regiondesk'), 'undefined');
   assert.equal(await guest('typeof require'), 'undefined');
   const worker = await guest("new Promise((resolve,reject) => { const w = new Worker('/worker.js'); w.onmessage = e => { w.terminate(); resolve(e.data); }; w.onerror = () => reject(new Error('Worker failed')); setTimeout(() => {w.terminate();reject(new Error('Worker timed out'));},5000); })");
   console.log('Worker regional readings:', JSON.stringify(worker));
   assert.equal(worker.language, 'en-US');
   assert.equal(worker.timezone, 'America/New_York');
+  assert.deepEqual(worker.clientHints, nativeHints);
   const frame = await guest(`new Promise((resolve,reject) => { const f=document.createElement('iframe'); const receive=e=>{if(e.source===f.contentWindow){removeEventListener('message',receive);f.remove();resolve(e.data);}};addEventListener('message',receive);f.src='https://regiondesk-frame.test:${fixture.address().port}/frame';document.body.append(f);setTimeout(()=>{removeEventListener('message',receive);f.remove();reject(new Error('Frame timed out'));},5000);})`);
   assert.equal(frame.language, 'en-US');
   assert.equal(frame.timezone, 'America/New_York');
+  assert.deepEqual(frame.clientHints, nativeHints);
   const dnsBlocked = await app.evaluate(async ({ session }) => { try { await session.defaultSession.resolveHost('example.com'); return false; } catch { return true; } });
   assert.equal(dnsBlocked, true, 'Chromium local DNS resolver should be disabled');
   pass('cross-site frame matches region; proxy resolves fixture hostnames while Chromium local DNS is blocked');
