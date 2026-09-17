@@ -4,7 +4,7 @@ A local Windows workspace with an embedded Chromium browser, separate persistent
 
 ## Run
 
-Extract `release/RegionDesk-0.1.1-Windows.zip` into a normal folder and open `RegionDesk.exe` inside it. Keep all extracted files together. The ZIP replaces the self-extracting EXE, which failed to launch sandboxed Chromium from Windows Temp on this machine. This portable, unsigned build does not install a system proxy or change Windows language/timezone.
+Extract `release/RegionDesk-0.1.2-Windows.zip` into a normal folder and open `RegionDesk.exe` inside it. Keep all extracted files together. The ZIP replaces the self-extracting EXE, which failed to launch sandboxed Chromium from Windows Temp on this machine. This portable, unsigned build does not install a system proxy or change Windows language/timezone.
 
 For development (Node.js 22.12 or newer):
 
@@ -53,7 +53,7 @@ The Windows/Chromium engine, graphics/hardware capabilities and browser behavior
 
 Connection verification uses one external service and matches country and the reported timezone, not city. Website compatibility can differ in embedded Chromium; Google/other third-party OAuth popups may require site-specific handling. New windows open in the same account view. Downloads and external app protocols are blocked. There is no ad/tracker blocklist that could silently break login or upload.
 
-Live TikTok login, posting and audience distribution have **not** been verified because no account or real regional proxy was supplied. Regional-network claims in the automated tests come from a clearly labeled local fixture.
+Live verification and embedded-browser outgoing-IP checks passed for the two supplied Webshare US/Los_Angeles HTTP endpoints on September 17, 2026. Live TikTok login, posting and audience distribution have **not** been verified. The repeatable automated regional tests use a clearly labeled local fixture.
 
 ## Local data
 
@@ -69,7 +69,7 @@ npm run build
 npm run test:desktop
 npm run package
 node scripts/package-smoke.mjs
-Expand-Archive release/RegionDesk-0.1.1-Windows.zip release/RegionDesk-0.1.1-Windows
+Expand-Archive release/RegionDesk-0.1.2-Windows.zip release/RegionDesk-0.1.2-Windows
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/portable-smoke.ps1
 ```
 

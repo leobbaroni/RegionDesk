@@ -130,6 +130,14 @@ try {
   await page.getByRole('button', { name: 'Save connection', exact: true }).click();
   await page.getByText('Connection saved. Run verification before browsing.', { exact: true }).waitFor();
   pass('connection form saves credentials and prevents verification of unsaved edits');
+  const savedProfile = (await api('getState')).profiles[0];
+  await api('saveProfile', { ...savedProfile, password: 'invalid-fixture-password' });
+  const rejected = await api('verify');
+  assert.equal(rejected.runtime.status, 'error');
+  assert.match(rejected.runtime.message, /Proxy authentication failed.*HTTP 407/);
+  assert.doesNotMatch(JSON.stringify(rejected), /invalid-fixture-password/);
+  await api('saveProfile', { ...savedProfile, password });
+  pass('upstream HTTP 407 surfaces a precise authentication error without leaking credentials');
   data = await api('verify');
   assert.equal(data.runtime.status, 'ready', data.runtime.message);
   assert.equal(data.runtime.network.country, 'US');

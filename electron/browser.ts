@@ -19,6 +19,7 @@ export class AccountBrowser {
   view: WebContentsView | null = null;
   private sessions = new Map<string, Session>();
   private bridge: ProxyServer | null = null;
+  private upstreamStatus: number | undefined;
   private validUntil = 0;
   private checking = false;
   private generation = 0;
@@ -82,6 +83,13 @@ export class AccountBrowser {
       } });
     // Never forward upstream errors or credentials to the renderer or activity log.
     bridge.on('requestFailed', () => {});
+    bridge.on('tunnelConnectFailed', ({ response }: { response: { statusCode?: number } }) => {
+      if (this.bridge !== bridge) return;
+      // Chromium collapses upstream 407 into ERR_TUNNEL_CONNECTION_FAILED.
+      // Keep only the status code, never response bodies or credential headers.
+      this.upstreamStatus = response.statusCode;
+      if (this.state.status === 'ready' && !this.checking) void this.lock(connectionError(null, this.upstreamStatus), 'error');
+    });
     bridge.on('error', () => { if (this.bridge === bridge) void this.lock('The proxy route stopped. Verify the connection again.', 'error'); });
     trace('starting bridge'); await bridge.listen(); this.bridge = bridge;
     const ses = this.getSession();
@@ -158,6 +166,7 @@ export class AccountBrowser {
     const token = ++this.generation;
     if (!this.store.active.proxy.host) { this.state.message = 'Add a proxy host and port in Connections first.'; this.emit(); return; }
     this.checking = true;
+    this.upstreamStatus = undefined;
     if (!background) { this.state.status = 'checking'; this.state.message = 'Checking your proxy route and apparent country…'; this.emit(); }
     try {
       trace('verification started'); if (!this.bridge) await this.configure();
@@ -193,7 +202,7 @@ export class AccountBrowser {
       if (!background) this.log(`Connection verified in ${network.country}. Managed browsing unlocked.`, 'success');
       this.emit();
     } catch (error) {
-      if (token === this.generation) await this.lock(connectionError(error), 'error');
+      if (token === this.generation) await this.lock(connectionError(error, this.upstreamStatus), 'error');
     } finally { if (token === this.generation) this.checking = false; }
   }
   async lock(message = 'Browser locked. Saved cookies and login sessions are preserved.', status: 'locked' | 'error' = 'locked') {

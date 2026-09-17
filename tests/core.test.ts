@@ -29,4 +29,6 @@ test('private IPv4 and IPv6 addresses are recognized', () => {
 test('connection errors never echo upstream credentials', () => {
   assert.doesNotMatch(connectionError('failed at http://super-secret:password@proxy:80'), /super-secret|password@/);
   assert.match(connectionError('407 auth failed'), /authentication/);
+  assert.match(connectionError('net::ERR_TUNNEL_CONNECTION_FAILED', 407), /authentication failed.*HTTP 407/);
+  assert.match(connectionError('net::ERR_TUNNEL_CONNECTION_FAILED', 403), /refused.*HTTP 403/);
 });

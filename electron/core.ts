@@ -58,7 +58,11 @@ export function isPrivateHost(host: string): boolean {
   if (isIP(h) === 4) { const [a, b] = h.split('.').map(Number); return a === 0 || a === 10 || a === 127 || a === 169 && b === 254 || a === 172 && b >= 16 && b <= 31 || a === 192 && b === 168; }
   return isIP(h) === 6 && (h === '::1' || h === '::' || h.startsWith('fc') || h.startsWith('fd') || /^fe[89ab]/.test(h) || h.startsWith('::ffff:'));
 }
-export function connectionError(code: unknown): string {
+export function connectionError(code: unknown, upstreamStatus?: number): string {
+  if (upstreamStatus === 401 || upstreamStatus === 407) return 'Proxy authentication failed (HTTP 407). Copy the current username and password from your provider, save the connection, and verify again.';
+  if (upstreamStatus === 403) return 'The proxy provider refused this connection (HTTP 403). Check endpoint access and restrictions in your provider account.';
+  if (upstreamStatus === 429) return 'The proxy provider is rate-limiting connections (HTTP 429). Wait before retrying and check your plan limits.';
+  if (upstreamStatus && upstreamStatus >= 500) return `The proxy provider could not open the tunnel (HTTP ${upstreamStatus}). Check endpoint availability in your provider account.`;
   const message = String(code);
   if (/407|auth|credentials/i.test(message)) return 'Proxy authentication failed. Check the username and password.';
   if (/timeout|timed|abort/i.test(message)) return 'The proxy check timed out. Check the endpoint and try again.';
