@@ -1,83 +1,155 @@
+<div align="center">
+
 # RegionDesk
 
-A local Windows workspace with an embedded Chromium browser, separate persistent profiles, proxy routing and regional browser preferences. Built with Electron, React and TypeScript. No app subscription or video studio.
+**Separate profiles. Consistent regional settings. A browser you control.**
 
-## Run
+A Windows desktop workspace for isolated browser sessions, verified proxy routing and regional preferences.
 
-Extract `release/RegionDesk-0.1.4-Windows.zip` into the stable `release/RegionDesk-Windows` folder and open `RegionDesk.exe` inside it. Keep all extracted files together. The ZIP replaces the self-extracting EXE, which failed to launch sandboxed Chromium from Windows Temp on this machine. This portable, unsigned build does not install a system proxy or change Windows language/timezone.
+![Version](https://img.shields.io/badge/version-0.1.4-c2b5ff?style=flat-square)
+![Platform](https://img.shields.io/badge/platform-Windows_x64-0078D4?style=flat-square)
+![Stack](https://img.shields.io/badge/Electron-React_%2B_TypeScript-47848F?style=flat-square)
 
-For development (Node.js 22.12 or newer):
+[Getting started](#getting-started) · [Browser controls](#browser-controls) · [How it works](#how-it-works) · [Documentation](#documentation)
+
+</div>
+
+![RegionDesk workspace with profile navigation, browser controls and regional diagnostics](docs/images/workspace.png)
+
+## Your accounts, kept separate
+
+RegionDesk embeds Chromium inside a local desktop app. Each profile keeps its own cookies, site storage, proxy configuration and regional preferences. Bring your own proxy, verify the connection, then browse and sign in normally.
+
+| Capability | What you get |
+| --- | --- |
+| **Isolated profiles** | Persistent cookies, cache and storage per profile, with explicit session clearing. |
+| **Regional preferences** | Language, timezone and optional configured coordinates, plus presets for 12 countries. |
+| **Verified connections** | Authenticated HTTP, HTTPS and SOCKS5 upstream proxy support; country and reported timezone checks before browsing. |
+| **Flexible browsing** | Page zoom, a native context menu, a floating window and full-screen mode using the same session. |
+| **Permission controls** | Profile settings for camera, microphone, notifications, clipboard and website fullscreen. |
+| **Visible evidence** | Observed browser/network readings, an activity log and credential-free diagnostic exports. |
+| **Local credential storage** | Proxy passwords encrypted with Electron safeStorage on Windows. |
+
+No app subscription or bundled proxy. Website logins, uploads and publishing remain user-controlled.
+
+## Getting started
+
+### Run from source
+
+Requires **Windows**, **Git** and **Node.js 22.12+**.
 
 ```powershell
+git clone https://github.com/leobbaroni/RegionDesk.git
+cd RegionDesk
 npm ci
 npm run dev
 ```
 
-To build and run:
+For a production build:
 
 ```powershell
 npm run build
 npm start
 ```
 
-## First connection
+### Connect your first profile
 
-1. Open **Profiles**. Choose a preset or enter the desired two-letter country code, locale, IANA timezone and optional coordinates. Save.
-2. Open **Connections**. Enter your provider's host, port and optional username/password. HTTP CONNECT, HTTPS proxy and SOCKS5 upstreams are supported through a local proxy bridge.
-3. Add an optional provider label.
-4. Save, then **Verify connection**. The app requests IP/country information from `https://ipwho.is/` through the configured proxy. The country must match; a reported timezone must also match the profile. Service outages or mismatches keep it locked.
-5. Open **Browser → TikTok** or enter an HTTPS URL. Sign in yourself. **Upload a video** opens TikTok's own web uploader inside the same profile. RegionDesk does not submit posts automatically.
+1. Open **Profiles**, choose a region preset or enter your preferences, then save.
+2. Open **Connections** and enter your proxy host, port and credentials.
+3. **Save connection**, then **Verify connection**. The reported country and any reported timezone must match the profile.
+4. Open **Browser**, enter an HTTPS address or use a shortcut, and sign in yourself.
 
-No free or paid proxy is bundled. The Connections screen compares vendor offers and opens their sites in your normal browser. The account browser itself never intentionally falls back to the host connection.
+No traffic is sent to account websites until verification succeeds. Provider comparison links open in your regular browser; account browsing stays inside RegionDesk.
 
-## Features
+### Build a portable Windows app
 
-- Persistent, separate cookie jars, site storage, cache and proxy settings per profile.
-- Regional presets for the US (East/West), UK, Canada, Australia, Germany, France, Spain, Portugal, Brazil, Japan and Singapore; editable custom regions.
-- Browser language/Accept-Language, Intl locale, IANA timezone and optional coarse configured geolocation.
-- Profile controls for camera, microphone, notifications, clipboard and website fullscreen. Location is blocked or configured; local-network access, screen capture and devices stay blocked.
-- Non-proxied WebRTC UDP restricted and QUIC disabled. These are policies, not a claim of universal fingerprint protection.
-- Chromium local DNS resolution and DNS prefetching blocked; website hostnames go through the proxy. The local bridge still resolves your proxy provider's hostname.
-- Regional language applied to child contexts before their scripts start. Dedicated-worker and cross-site-frame language/timezone consistency are tested.
-- Genuine Chromium Client Hints preserved when applying regional preferences; diagnostics show the observed automation flag and Client Hints platform.
-- Fixed upstream proxy routing without a DIRECT fallback, a connection lease, periodic verification and browser shutdown on check failure.
-- Encrypted proxy-password persistence via Electron safeStorage (Windows protection); no password/cookie values in reports or logs.
-- Back, forward, refresh/stop, page zoom, native context menu, floating/full-screen browser, HTTPS address entry, same-profile popup navigation, TikTok shortcuts and file upload through the web page.
-- Real browser/network readings, in-memory activity log, JSON diagnostic export, per-profile session clearing and deletion.
-- Keyboard navigation, Ctrl+L for address focus and reduced-motion support.
+```powershell
+npm run package
+Expand-Archive release/RegionDesk-0.1.4-Windows.zip release/RegionDesk-Windows
+.\release\RegionDesk-Windows\RegionDesk.exe
+```
 
-## Evidence and boundaries
+Keep all extracted files together. Close the app before replacing files, and reuse the same folder for updates. The build is unsigned and portable; it does not change Windows' system proxy, language or timezone. The ZIP format avoids a verified launch issue with self-extracting executables running from Windows Temp.
 
-An IP geolocation result is an estimate. It does not prove residential/mobile origin, a real SIM, account eligibility, undetectability, or US audience distribution. RegionDesk preserves genuine website cookies; it does not invent signed login cookies or account history.
+## Browser controls
 
-The Windows/Chromium engine, graphics/hardware capabilities and browser behavior remain observable. All worker variants, DNS/WebRTC leak behavior across real providers, and platform acceptance are not certified. Browser checks are not an OS-wide firewall.
+| Action | Control |
+| --- | --- |
+| Focus the address bar | `Ctrl+L` in the workspace |
+| Zoom in / out | Toolbar buttons or `Ctrl` + `+` / `-` while the page is focused |
+| Reset zoom | Click the zoom percentage or press `Ctrl+0` |
+| Open a floating browser | **Pop out**; closing it returns the page to the workspace |
+| Enter / leave full screen | **Full screen**, `F11`, or `Esc` to leave |
+| Edit site permissions | **Permissions** → profile settings → save and reverify |
+| Copy, paste and navigate | Right-click the page for its native menu |
 
-Connection verification uses one external service and matches country and the reported timezone, not city. Website compatibility can differ in embedded Chromium; Google/other third-party OAuth popups may require site-specific handling. New windows open in the same account view. Downloads and external app protocols are blocked. There is no ad/tracker blocklist that could silently break login or upload.
+<details>
+<summary><strong>Preview the permission controls</strong></summary>
 
-Live verification and embedded-browser outgoing-IP checks passed for the two supplied Webshare US/Los_Angeles HTTP endpoints on September 17, 2026. Live TikTok login, posting and audience distribution have **not** been verified. The repeatable automated regional tests use a clearly labeled local fixture.
+![Profile controls for location, camera, microphone, notifications, clipboard and website fullscreen](docs/images/permissions.png)
 
-The v0.1.3 Google search check returned results without a challenge. Ordinary Chrome through the same proxy was challenged during the comparison, so future CAPTCHA-free access is not established. See [Google verification](docs/GOOGLE_VERIFICATION.md) for the controls and limits.
+Screenshots use a fresh, isolated local profile without personal accounts or proxy credentials.
+
+</details>
+
+## How it works
+
+Each profile uses a persistent Electron session. A loopback-only bridge connects that session to your configured upstream proxy. Connection verification requests IP geolocation through the same route and checks it against the profile before unlocking browsing.
+
+- **Routing:** fixed proxy configuration with no direct fallback. Chromium destination DNS resolution and DNS prefetching are blocked; the bridge resolves the upstream proxy's hostname.
+- **Regional consistency:** language, timezone and genuine browser metadata are applied to the page and supported child contexts. Dedicated workers and cross-site frames have regression coverage.
+- **Connection lifetime:** successful checks grant a 90-second lease, normally renewed every 45 seconds. Transient HTTP 429 responses trigger a cooldown and bounded retries without discarding a still-verified page. Rate limits never extend the lease.
+- **Permissions:** location is blocked or uses configured coordinates. Local-network access, loopback access, screen capture and device permissions remain blocked. Non-proxied WebRTC UDP is restricted and QUIC is disabled.
+- **Failure handling:** an expired check, region mismatch or route failure locks browsing. Saved website sessions are retained.
+
+**Windows Firewall:** the bridge listens on `127.0.0.1` and does not need incoming LAN access. Cancel an incoming-network permission prompt. Keeping the executable at the same path avoids creating a new app path for every update. RegionDesk does not modify firewall rules.
+
+### What verification establishes
+
+Verification confirms the proxy's reported country and timezone at the time of the check. It does not establish residential/mobile origin, account eligibility, CAPTCHA-free access or audience distribution. The real browser engine and hardware remain observable.
+
+Embedded-browser compatibility can differ from Chrome. Downloads and external app protocols are blocked; popups navigate within the same profile. Live TikTok login, publishing and audience distribution have not been verified. See [TESTING.md](TESTING.md) for the full evidence boundary.
+
+## Development and verification
+
+| Command | Purpose |
+| --- | --- |
+| `npm run dev` | Start the development app |
+| `npm run build` | Type-check and build the renderer and Electron processes |
+| `npm test` | Run unit tests |
+| `npm run test:desktop` | Exercise the real app with an isolated HTTPS/proxy fixture |
+| `npm run package` | Build the Windows portable ZIP |
+| `node scripts/package-smoke.mjs` | Check the unpacked packaged app |
+| `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/portable-smoke.ps1` | Verify normal launch from the extracted ZIP |
+
+The **v0.1.4 verification run** passed 7 unit tests, 23 desktop test groups and both packaged-launch checks. A live proxy check confirmed matching outgoing IP, language and timezone before and after moving a page into the floating window. These are recorded results, not continuous-integration badges.
+
+Desktop tests require OpenSSL; the default Windows path uses Git's bundled copy. Set `OPENSSL_BIN` to override it. Tests use separate data under `.test-data/` and a fixture-specific certificate pin that packaged builds ignore.
+
+```text
+electron/       Main process, proxy bridge, profile storage and IPC
+src/            React workspace and styles
+shared/         Profile, runtime and API types
+scripts/        Build, desktop verification and packaging checks
+tests/          Unit tests
+docs/           Controls, verification notes and integration research
+```
 
 ## Local data
 
-Profile settings and encrypted proxy passwords are stored under Electron's Windows user-data directory (normally `%APPDATA%/RegionDesk`). Chromium stores each profile under a separate `Partitions/regiondesk-<id>` directory. Sessions belong to this Windows user; keep the Windows account protected. Copying the profile file to another computer does not transfer decryptable passwords reliably.
+Settings and encrypted proxy credentials live under `%APPDATA%/RegionDesk`; website data is stored in separate `Partitions/regiondesk-<id>` directories. Password encryption is tied to the Windows account. Diagnostic exports include the measured public IP, but omit proxy credentials, cookie values and browsing URLs.
 
-Deleting a profile removes its settings, credentials and website data after confirmation. It does not delete the online account. **Clear session** signs out locally while retaining profile and proxy settings.
+**Clear session** removes a profile's local website data while retaining its settings. **Delete profile** removes its local settings, credentials and website data after confirmation. Neither action deletes an online account.
 
-## Verification and packaging
+## Documentation
 
-```powershell
-npm test
-npm run build
-npm run test:desktop
-npm run package
-node scripts/package-smoke.mjs
-Expand-Archive release/RegionDesk-0.1.4-Windows.zip release/RegionDesk-Windows
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/portable-smoke.ps1
-```
+- [Browser controls, 429 recovery and Windows Firewall](docs/BROWSER_CONTROLS.md)
+- [Test coverage and known limitations](TESTING.md)
+- [Proxy provider comparison](docs/PROXY_OPTIONS.md)
+- [Google compatibility investigation](docs/GOOGLE_VERIFICATION.md)
+- [Related projects and integration decisions](docs/RELATED_PROJECTS.md)
+- [Design system](DESIGN.md)
 
-The desktop tests launch the real Electron app with new, isolated test data and a local authenticated proxy/HTTPS fixture. They need OpenSSL; on Windows the default is the copy bundled with Git. Override `OPENSSL_BIN` if needed. The fixture's exact certificate is pinned only in unpackaged test runs; packaged builds ignore test overrides. Set `REGIONDESK_CAPTURE=1` to capture the UI into `.impeccable/review/`.
+## License
 
-See [TESTING.md](TESTING.md) for the verification boundary and [proxy options](docs/PROXY_OPTIONS.md) for the free/paid comparison.
-
-See [browser controls and 429 recovery](docs/BROWSER_CONTROLS.md) and the [related-project integration review](docs/RELATED_PROJECTS.md).
+No open-source license has been granted for RegionDesk (`UNLICENSED`). Third-party dependencies retain their respective licenses.
