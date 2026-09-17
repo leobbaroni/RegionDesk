@@ -268,3 +268,15 @@ td { padding: 17px; border-top: 1px solid #2a2c34; font-size: 11px; color: #bfc1
 @keyframes drawer-enter { from { transform: translateX(20px); clip-path: inset(0 0 0 10%); } to { transform: translateX(0); clip-path: inset(0); } }
 @media (max-width: 1200px) { .sidebar { width: 194px; flex-basis: 194px; padding: 0 9px; } .brand { font-size: 16px; gap: 7px; } .page { padding: 26px 23px 20px; } .topbar { padding: 0 23px; } .environment-panel { flex-basis: 214px; padding: 0 14px; } .strip-facts { gap: 14px; } .strip-facts > span:first-child { display: none; } .heading-actions { gap: 6px; } .heading-actions .button { font-size: 11px; padding: 7px 9px; } h1 { font-size: 21px; } .settings-aside { flex-basis: 195px; } .connection-verification { width: 230px; padding-left: 16px; padding-right: 16px; } .settings-section { padding: 20px; } .connection-layout { gap: 16px; } .form-grid { gap: 15px; } .choice-row { flex-direction: column; } .browser-empty { padding: 22px; } .browser-empty h2 { font-size: 17px; } .browser-empty p { font-size: 11px; } .empty-footnote { font-size: 9px; } .local-user > svg { display: none; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
+
+.browser-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 3px; padding: 5px 9px; border-bottom: 1px solid var(--border); }
+.browser-controls .button { font-size: 11px; min-height: 30px; padding: 5px 7px; }
+.zoom-controls { display: flex; align-items: center; margin-right: auto; }
+.zoom-controls button { height: 30px; min-width: 28px; background: transparent; border: 0; color: var(--fg); border-radius: 4px; font-size: 11px; font-variant-numeric: tabular-nums; }
+.zoom-controls button:hover:not(:disabled) { background: var(--control-hover); }
+.zoom-controls button:disabled { opacity: .43; }
+.browser-retry { padding: 8px 12px; font-size: 11px; color: #d9bd8d; background: #29251e; }
+.permission-list { margin-bottom: 14px; }
+.permission-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.permission-row select { width: 110px; height: 35px; padding: 7px 10px; background: #111215; color: #e0e1e8; border: 1px solid #393b44; border-radius: 5px; font-size: 12px; }
+.permission-row select:hover { border-color: #555762; }

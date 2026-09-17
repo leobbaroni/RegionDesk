@@ -1,4 +1,4 @@
-param([string]$Executable = "$PSScriptRoot\..\release\RegionDesk-0.1.3-Windows\RegionDesk.exe")
+param([string]$Executable = "$PSScriptRoot\..\release\RegionDesk-Windows\RegionDesk.exe")
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes

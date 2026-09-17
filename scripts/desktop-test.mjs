@@ -14,7 +14,8 @@ const dataDir = path.join(root, '.test-data', randomUUID());
 const review = path.join(root, '.impeccable', 'review');
 await fs.mkdir(dataDir, { recursive: true }); await fs.mkdir(review, { recursive: true });
 let country = 'US', overrideTimezone = '', proxyRequests = 0, directRequests = 0, authenticationChallenges = 0;
-let browserHeaders;
+let browserHeaders, checkRateLimited = false, tunnelRateLimited = false;
+let geoRequests = 0, rateLimitHits = 0;
 const keyFile = path.join(dataDir, 'fixture-key.pem'), certFile = path.join(dataDir, 'fixture-cert.pem');
 execFileSync(process.env.OPENSSL_BIN || 'C:\\Program Files\\Git\\usr\\bin\\openssl.exe', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', keyFile, '-out', certFile, '-days', '1', '-subj', '/CN=RegionDesk local fixture', '-addext', 'subjectAltName=IP:127.0.0.1,DNS:regiondesk.test,DNS:regiondesk-frame.test'], { stdio: 'ignore' });
 const cert = await fs.readFile(certFile), key = await fs.readFile(keyFile);
@@ -23,7 +24,7 @@ const tunnels = new Set(), tunnelPorts = new Set();
 const fixture = https.createServer({ key, cert }, (req, res) => {
   if (req.url === '/page') browserHeaders = { language: req.headers['accept-language'] };
   if (!tunnelPorts.has(req.socket.remotePort)) directRequests++;
-  if (req.url === '/geo') { res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify({ success: true, ip: '203.0.113.42', country_code: country, city: country === 'US' ? 'New York' : 'London', timezone: { id: overrideTimezone || (country === 'US' ? 'America/New_York' : 'Europe/London') }, connection: { isp: 'LOCAL TEST FIXTURE — not a real proxy' } })); return; }
+  if (req.url === '/geo') { geoRequests++; if (checkRateLimited) { res.writeHead(429, {'Retry-After':'5'}); res.end(); return; } res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify({ success: true, ip: '203.0.113.42', country_code: country, city: country === 'US' ? 'New York' : 'London', timezone: { id: overrideTimezone || (country === 'US' ? 'America/New_York' : 'Europe/London') }, connection: { isp: 'LOCAL TEST FIXTURE — not a real proxy' } })); return; }
   if (req.url === '/worker.js') { res.setHeader('Content-Type', 'text/javascript'); res.end('postMessage({language:navigator.language,timezone:Intl.DateTimeFormat().resolvedOptions().timeZone,locale:Intl.DateTimeFormat().resolvedOptions().locale,userAgent:navigator.userAgent,clientHints:navigator.userAgentData?.toJSON()})'); return; }
   if (req.url === '/frame') { res.setHeader('Content-Type', 'text/html'); res.end('<script>parent.postMessage({language:navigator.language,timezone:Intl.DateTimeFormat().resolvedOptions().timeZone,clientHints:navigator.userAgentData?.toJSON()},"*")</script>'); return; }
   res.setHeader('Content-Type', 'text/html');
@@ -42,6 +43,7 @@ const upstream = http.createServer((req, res) => {
   proxied.on('error', () => { res.writeHead(502); res.end(); }); req.pipe(proxied);
 });
 upstream.on('connect', (req, client, head) => {
+  if (tunnelRateLimited) { rateLimitHits++; client.end('HTTP/1.1 429 Too Many Requests\r\nRetry-After: 5\r\n\r\n'); return; }
   if (req.headers['proxy-authorization'] !== auth) { authenticationChallenges++; client.end('HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: Basic realm="fixture"\r\n\r\n'); return; }
   const destination = new URL(`http://${req.url}`);
   if (!['127.0.0.1', 'regiondesk.test', 'regiondesk-frame.test'].includes(destination.hostname) || Number(destination.port) !== fixture.address().port) { client.end('HTTP/1.1 403 Forbidden\r\n\r\n'); return; }
@@ -99,6 +101,8 @@ try {
   await capture('connections.png');
   await page.getByRole('button', { name: 'Profiles', exact: true }).click();
   await capture('profiles.png');
+  await page.getByLabel('Camera permission').scrollIntoViewIfNeeded();
+  await capture('profile-permissions.png');
   await page.getByRole('button', { name: 'Diagnostics', exact: true }).click();
   await capture('diagnostics.png');
   pass('all four app screens render at supported desktop sizes');
@@ -140,6 +144,14 @@ try {
   assert.doesNotMatch(JSON.stringify(rejected), /invalid-fixture-password/);
   await api('saveProfile', { ...savedProfile, password });
   pass('upstream HTTP 407 surfaces a precise authentication error without leaking credentials');
+  checkRateLimited = true;
+  data = await api('verify');
+  assert.equal(data.runtime.status, 'error'); assert.match(data.runtime.message, /region-check service.*429/);
+  await assert.rejects(() => api('navigate', `${base}/page`), /Verify/);
+  checkRateLimited = false;
+  await page.waitForTimeout(6200);
+  assert.equal((await api('getState')).runtime.status, 'ready');
+  pass('startup 429 remains locked and automatically verifies after Retry-After');
   data = await api('verify');
   assert.equal(data.runtime.status, 'ready', data.runtime.message);
   assert.equal(data.runtime.network.country, 'US');
@@ -152,6 +164,67 @@ try {
   pass('authenticated HTTP CONNECT with HTTPS, country check, timezone, locale, WebRTC policy and encrypted credentials');
   await api('navigate', `${base}/page`);
   await page.waitForTimeout(700);
+  await page.getByRole('button', { name: 'Browser', exact: true }).click();
+  const guestId = await app.evaluate(({ webContents }) => webContents.getAllWebContents().find(w => w.getURL().includes('/page')).id);
+  await page.getByRole('button', { name: 'Zoom in', exact: true }).click();
+  assert.equal((await api('getState')).runtime.zoom, 1.1);
+  await app.evaluate(({ webContents }, id) => { const wc=webContents.fromId(id); wc.sendInputEvent({type:'keyDown',keyCode:'0',modifiers:['control']}); wc.sendInputEvent({type:'keyUp',keyCode:'0',modifiers:['control']}); }, guestId);
+  await page.waitForTimeout(100);
+  assert.equal((await api('getState')).runtime.zoom, 1);
+  await page.getByRole('button', { name: 'Pop out', exact: true }).click();
+  assert.equal((await api('getState')).runtime.detached, true);
+  assert.equal(await app.evaluate(({ webContents }, id) => webContents.fromId(id).isDestroyed(), guestId), false);
+  await api('browserAction', 'fullscreen'); await page.waitForTimeout(300);
+  assert.equal((await api('getState')).runtime.fullscreen, true);
+  await app.evaluate(({ webContents }, id) => webContents.fromId(id).sendInputEvent({type:'keyDown',keyCode:'Escape'}), guestId);
+  await page.waitForTimeout(200);
+  assert.equal((await api('getState')).runtime.fullscreen, false);
+  const floatingReadings = await guest('({locale:navigator.language,timezone:Intl.DateTimeFormat().resolvedOptions().timeZone})');
+  assert.equal(floatingReadings.locale, 'en-US'); assert.equal(floatingReadings.timezone, 'America/New_York');
+  await app.evaluate(({ BaseWindow, BrowserWindow }) => BaseWindow.getAllWindows().find(w=>!BrowserWindow.fromId(w.id)).close());
+  assert.equal((await api('getState')).runtime.detached, false);
+  assert.equal(await app.evaluate(({ webContents }, id) => webContents.fromId(id).isDestroyed(), guestId), false);
+  await capture('browser-controls.png');
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1060, 740));
+  await capture('browser-controls-compact.png');
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1440, 900));
+  await app.evaluate(async ({webContents}, id) => { await webContents.fromId(id).executeJavaScript('document.documentElement.requestFullscreen()', true); }, guestId);
+  await page.waitForTimeout(300);
+  assert.equal((await api('getState')).runtime.detached, true);
+  assert.equal((await api('getState')).runtime.fullscreen, true);
+  assert.equal(await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].isFullScreen()), false);
+  await guest('document.exitFullscreen()'); await page.waitForTimeout(300);
+  await api('browserAction', 'dock');
+  pass('zoom keyboard/toolbar and floating full-screen/close retain the same regional browser');
+  assert.equal(await guest("navigator.permissions.query({name:'camera'}).then(p=>p.state)"), 'denied');
+  assert.equal(await guest("Notification.requestPermission()"), 'denied');
+  assert.equal(await guest("fetch('https://192.168.1.1/').then(()=>false,()=>true)"), true);
+  assert.equal(await guest("fetch('https://[::1]/').then(()=>false,()=>true)"), true);
+  pass('camera and notifications deny by default; private network and loopback requests stay blocked');
+  checkRateLimited = true;
+  let limited = await api('verify');
+  assert.equal(limited.runtime.status, 'ready');
+  assert.match(limited.runtime.message, /region-check service.*429/);
+  const beforeRetry = geoRequests;
+  await api('verify'); assert.equal(geoRequests, beforeRetry, 'manual verification must respect Retry-After');
+  checkRateLimited = false;
+  await page.waitForTimeout(6200);
+  assert.equal((await api('getState')).runtime.retryAt, undefined);
+  assert.equal(await app.evaluate(({ webContents }, id) => webContents.fromId(id).isDestroyed(), guestId), false);
+  pass('region-service 429 honors cooldown and automatically recovers without closing the page');
+  tunnelRateLimited = true;
+  await app.evaluate(async ({ webContents }, id) => webContents.fromId(id).session.closeAllConnections(), guestId);
+  await guest("fetch('/limited').catch(()=>null)");
+  assert.ok(rateLimitHits > 0);
+  limited = await api('getState');
+  assert.equal(limited.runtime.status, 'ready'); assert.match(limited.runtime.message, /proxy.*rate-limit/i);
+  tunnelRateLimited = false;
+  await page.waitForTimeout(6200);
+  assert.equal((await api('getState')).runtime.status, 'ready');
+  assert.equal((await api('getState')).runtime.retryAt, undefined);
+  assert.equal(await app.evaluate(({ webContents }, id) => webContents.fromId(id).isDestroyed(), guestId), false);
+  pass('upstream tunnel 429 preserves session and recovers through the same proxy');
   const nativeHints = await page.evaluate(() => navigator.userAgentData.toJSON());
   assert.deepEqual(await guest('navigator.userAgentData.toJSON()'), nativeHints, 'Regional preferences must preserve native Client Hints');
   const nativeHighHints = await page.evaluate(() => navigator.userAgentData.getHighEntropyValues(['architecture', 'bitness', 'platformVersion', 'fullVersionList', 'wow64']));
@@ -181,9 +254,22 @@ try {
   pass('embedded website has no Node or privileged app bridge');
   const geolocationDenied = await guest("new Promise(resolve => navigator.geolocation.getCurrentPosition(() => resolve(false), e => resolve(e.code === 1), {timeout:2000}))");
   assert.equal(geolocationDenied, true); pass('default geolocation permission denies coordinates');
+  assert.equal((await api('getState')).runtime.status, 'ready');
+  checkRateLimited = true;
+  await api('verify');
+  await app.evaluate(() => { globalThis.realDateNow = Date.now; Date.now = () => globalThis.realDateNow() + 91_000; });
+  await page.waitForTimeout(1300);
+  assert.equal((await api('getState')).runtime.status, 'error');
+  await assert.rejects(() => api('navigate', `${base}/page`), /Verify/);
+  await app.evaluate(() => { Date.now = globalThis.realDateNow; delete globalThis.realDateNow; });
+  checkRateLimited = false;
+  await api('disconnect'); await api('verify');
+  pass('rate limits do not extend verification lease; expired verification closes browsing');
+  await api('browserAction', 'detach');
   const bState = await api('createProfile');
+  assert.equal(await app.evaluate(({ BaseWindow }) => BaseWindow.getAllWindows().length), 1, 'Profile switching must close floating window');
   const b = bState.profiles.find(p => p.id === bState.activeId);
-  await api('saveProfile', { ...b, name: 'United Kingdom', country: 'GB', city: 'London', locale: 'en-GB', timezone: 'Europe/London', latitude: 51.5074, longitude: -0.1278, locationPermission: 'configured', password, proxy: { ...a.proxy, host: '127.0.0.1', port: proxyPort, username, provider: 'Local verification fixture' } });
+  await api('saveProfile', { ...b, permissions: {camera:true,microphone:false,notifications:true,clipboard:false,fullscreen:true}, name: 'United Kingdom', country: 'GB', city: 'London', locale: 'en-GB', timezone: 'Europe/London', latitude: 51.5074, longitude: -0.1278, locationPermission: 'configured', password, proxy: { ...a.proxy, host: '127.0.0.1', port: proxyPort, username, provider: 'Local verification fixture' } });
   country = 'GB'; data = await api('verify');
   assert.equal(data.runtime.status, 'ready', data.runtime.message);
   assert.equal(data.runtime.browser.timezone, 'Europe/London');
@@ -192,6 +278,9 @@ try {
   assert.equal(await guest("localStorage.getItem('marker')"), null);
   assert.equal(await guest("document.cookie.includes('regiondesk=A')"), false);
   const position = await guest("new Promise(resolve => navigator.geolocation.getCurrentPosition(p => resolve({lat:p.coords.latitude,lon:p.coords.longitude}), e => resolve({error:e.code}), {timeout:5000}))");
+  assert.equal(await guest("navigator.permissions.query({name:'camera'}).then(p=>p.state)"), 'granted');
+  assert.equal(await guest("navigator.permissions.query({name:'microphone'}).then(p=>p.state)"), 'denied');
+  assert.equal(await guest("Notification.requestPermission()"), 'granted');
   assert.equal(position.lat, 51.5074, JSON.stringify(position));
   pass('second profile isolates cookies/storage and applies UK locale, timezone and configured coordinates');
   await api('selectProfile', a.id); country = 'US';

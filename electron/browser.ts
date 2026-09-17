@@ -1,10 +1,11 @@
-import { app, BrowserWindow, WebContentsView, session, type Session } from 'electron';
+import { app, BaseWindow, BrowserWindow, Menu, WebContentsView, session, type Session, type WebContents } from 'electron';
 import { Server as ProxyServer } from 'proxy-chain';
 import { isIP } from 'node:net';
 import { randomUUID, X509Certificate } from 'node:crypto';
 import { connectionError, isPrivateHost, normalizeURL, proxyURL } from './core';
 import type { ProfileStore } from './store';
 import type { Activity, Bounds, BrowserEvidence, NetworkEvidence, RuntimeState } from '../shared/types';
+import { defaultPermissions } from '../shared/types';
 
 export const lockedState = (): RuntimeState => ({ status: 'locked', message: 'Add a connection and verify its region to unlock browsing.', url: '', title: '', loading: false, canGoBack: false, canGoForward: false, cookieCount: null });
 const productionCheck = 'https://ipwho.is/';
@@ -12,6 +13,13 @@ const testMode = !app.isPackaged && process.env.REGIONDESK_TEST === '1';
 const checkURL = testMode && process.env.REGIONDESK_CHECK_URL || productionCheck;
 const lifetime = 90_000;
 const trace = (step: string) => { if (testMode) console.log(`[browser-test] ${step}`); };
+class CheckRateLimit extends Error {
+  constructor(public delay: number) { super('The region-check service is rate-limiting requests (HTTP 429).'); }
+}
+const retryDelay = (value?: string | null) => {
+  const seconds = value && /^\d+$/.test(value) ? Number(value) * 1000 : value ? Date.parse(value) - Date.now() : 30_000;
+  return Math.max(5_000, Number.isFinite(seconds) ? seconds : 30_000);
+};
 
 export class AccountBrowser {
   state = lockedState();
@@ -26,11 +34,19 @@ export class AccountBrowser {
   private bounds: Bounds | null = null;
   private abort: AbortController | null = null;
   private timer: NodeJS.Timeout;
+  private floating: BaseWindow | null = null;
+  private nextCheck = 0;
+  private retryAt = 0;
+  private retryCount = 0;
+  private upstreamRetryDelay = 30_000;
 
   constructor(private win: BrowserWindow, private store: ProfileStore, private emit: () => void) {
     this.timer = setInterval(() => {
-      if (this.state.status === 'ready' && !this.checking) void this.verify(true);
-    }, 45_000);
+      if (this.state.status === 'ready' && Date.now() >= this.validUntil) {
+        const retry = this.retryAt;
+        void this.lock('Region verification expired. Browsing is locked until the next successful check.', 'error').then(() => { this.retryAt = retry; this.state.retryAt = retry || undefined; this.emit(); });
+      } else if (!this.checking && (this.state.status === 'ready' && Date.now() >= this.nextCheck || this.retryAt > 0 && Date.now() >= this.retryAt && this.retryCount <= 2)) void this.verify(true);
+    }, 1000);
     this.timer.unref();
   }
   log(message: string, kind: Activity['kind'] = 'info') {
@@ -38,6 +54,18 @@ export class AccountBrowser {
     this.activity = this.activity.slice(0, 60); this.emit();
   }
   private allowed() { return this.state.status === 'ready' && Date.now() < this.validUntil; }
+  private permission(id: string, wc: WebContents | null, permission: string, origin: string, media: string[] = []) {
+    if (id !== this.store.activeId || !this.allowed() || !this.view || wc && wc !== this.view.webContents) return false;
+    try { if (new URL(origin).origin !== new URL(this.view.webContents.getURL()).origin) return false; } catch { return false; }
+    const p = { ...defaultPermissions, ...this.store.active.permissions };
+    // No permission can enable local-network, loopback, devices or host geolocation.
+    if (permission === 'geolocation') return this.store.active.locationPermission === 'configured';
+    if (permission === 'media') return media.length > 0 && media.every(type => type === 'video' ? p.camera : type === 'audio' ? p.microphone : false);
+    if (permission === 'notifications') return p.notifications;
+    if (permission === 'fullscreen') return p.fullscreen;
+    if (permission === 'clipboard-read' || permission === 'clipboard-sanitized-write') return p.clipboard;
+    return false;
+  }
   getSession(id = this.store.activeId) {
     const cached = this.sessions.get(id); if (cached) return cached;
     const ses = session.fromPartition(`persist:regiondesk-${id}`);
@@ -50,8 +78,8 @@ export class AccountBrowser {
         callback(['127.0.0.1', 'regiondesk.test', 'regiondesk-frame.test'].includes(request.hostname) && actual === expected ? 0 : -3);
       });
     }
-    ses.setPermissionCheckHandler((_wc, permission) => id === this.store.activeId && this.allowed() && this.store.active.locationPermission === 'configured' && permission === 'geolocation');
-    ses.setPermissionRequestHandler((_wc, permission, callback) => callback(id === this.store.activeId && this.allowed() && this.store.active.locationPermission === 'configured' && permission === 'geolocation'));
+    ses.setPermissionCheckHandler((wc, permission, origin, details) => this.permission(id, wc, permission, origin, details.mediaType ? [details.mediaType] : []));
+    ses.setPermissionRequestHandler((wc, permission, callback, details) => callback(this.permission(id, wc, permission, details.requestingUrl, 'mediaTypes' in details ? details.mediaTypes : [])));
     ses.setDevicePermissionHandler(() => false);
     ses.setDisplayMediaRequestHandler((_request, callback) => callback({}));
     ses.on('will-download', event => { event.preventDefault(); this.log('Download blocked in the account browser. Use your regular browser for downloads.', 'warning'); });
@@ -83,11 +111,21 @@ export class AccountBrowser {
       } });
     // Never forward upstream errors or credentials to the renderer or activity log.
     bridge.on('requestFailed', () => {});
-    bridge.on('tunnelConnectFailed', ({ response }: { response: { statusCode?: number } }) => {
+    bridge.on('tunnelConnectFailed', ({ response }: { response: { statusCode?: number; headers?: Record<string, string | string[] | undefined> } }) => {
       if (this.bridge !== bridge) return;
       // Chromium collapses upstream 407 into ERR_TUNNEL_CONNECTION_FAILED.
       // Keep only the status code, never response bodies or credential headers.
       this.upstreamStatus = response.statusCode;
+      if (response.statusCode === 429) {
+        this.upstreamRetryDelay = retryDelay(String(response.headers?.['retry-after'] || ''));
+        if (!this.checking && this.allowed()) {
+          this.state.message = 'A proxy request was rate-limited (HTTP 429). Your verified session is preserved. Wait before reloading the page.';
+          if (Date.now() >= this.retryAt) this.log(this.state.message, 'warning');
+          this.retryAt = Math.max(this.retryAt, Date.now() + this.upstreamRetryDelay);
+          this.nextCheck = this.retryAt; this.state.retryAt = this.retryAt; this.emit();
+        }
+        return;
+      }
       if (this.state.status === 'ready' && !this.checking) void this.lock(connectionError(null, this.upstreamStatus), 'error');
     });
     bridge.on('error', () => { if (this.bridge === bridge) void this.lock('The proxy route stopped. Verify the connection again.', 'error'); });
@@ -116,11 +154,37 @@ export class AccountBrowser {
     })()`);
     const userAgent = ses.getUserAgent().replace(/\sElectron\/[^\s]+/g, '').replace(/\sRegionDesk\/[^\s]+/gi, '').replace(/\sregiondesk\/[^\s]+/gi, '');
     ses.setUserAgent(userAgent, profile.locale);
-    const view = new WebContentsView({ webPreferences: { session: ses, sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true, allowRunningInsecureContent: false, devTools: testMode } });
+    const view = new WebContentsView({ webPreferences: { session: ses, sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true, allowRunningInsecureContent: false, disableHtmlFullscreenWindowResize: true, devTools: testMode } });
     this.view = view; view.setBackgroundColor('#101113'); view.setVisible(false); this.win.contentView.addChildView(view);
     const wc = view.webContents;
     wc.setUserAgent(userAgent);
     wc.setWebRTCIPHandlingPolicy('disable_non_proxied_udp');
+    wc.on('before-input-event', (event, input) => {
+      if (input.type !== 'keyDown') return;
+      const ctrl = input.control || input.meta;
+      const action = input.key === 'F11' ? 'fullscreen' : ctrl && ['+', '='].includes(input.key) ? 'zoom-in' : ctrl && input.key === '-' ? 'zoom-out' : ctrl && input.key === '0' ? 'zoom-reset' : '';
+      if (action) { event.preventDefault(); this.action(action); }
+      if (input.key === 'Escape' && this.floating?.isFullScreen()) { this.floating.setFullScreen(false); }
+    });
+    wc.on('zoom-changed', (_event, direction) => this.action(direction === 'in' ? 'zoom-in' : 'zoom-out'));
+    wc.on('context-menu', (_event, details) => {
+      if (!this.allowed()) return;
+      Menu.buildFromTemplate([
+        { label: 'Back', enabled: wc.navigationHistory.canGoBack(), click: () => this.action('back') },
+        { label: 'Reload', click: () => this.action('reload') },
+        { type: 'separator' },
+        { label: 'Cut', visible: details.isEditable, enabled: details.editFlags.canCut, click: () => wc.cut() },
+        { label: 'Copy', enabled: details.editFlags.canCopy, click: () => wc.copy() },
+        { label: 'Paste', visible: details.isEditable, enabled: details.editFlags.canPaste, click: () => wc.paste() },
+        { label: 'Select all', click: () => wc.selectAll() },
+        { type: 'separator' },
+        { label: 'Zoom in', click: () => this.action('zoom-in') }, { label: 'Zoom out', click: () => this.action('zoom-out') },
+        { label: 'Reset zoom', click: () => this.action('zoom-reset') },
+        { label: this.floating ? 'Return to workspace' : 'Open in floating window', click: () => this.action(this.floating ? 'dock' : 'detach') }
+      ]).popup({ window: this.floating || this.win });
+    });
+    wc.on('enter-html-full-screen', () => { if (!this.floating) this.detach(); this.floating?.setFullScreen(true); });
+    wc.on('leave-html-full-screen', () => this.floating?.setFullScreen(false));
     // Create the renderer's initial context before sending emulation commands.
     // This is a local blank document; no account website has been requested yet.
     await wc.loadURL('about:blank');
@@ -160,13 +224,16 @@ export class AccountBrowser {
       if (this.view !== view || wc.isDestroyed()) return;
       this.state.url = wc.getURL().startsWith('http') ? wc.getURL() : '';
       this.state.title = wc.getTitle(); this.state.loading = wc.isLoading();
+      this.state.zoom = wc.getZoomFactor();
+      this.floating?.setTitle(`${this.store.active.name} · ${this.state.title || 'Browser'} — RegionDesk`);
       this.state.canGoBack = wc.navigationHistory.canGoBack(); this.state.canGoForward = wc.navigationHistory.canGoForward(); this.emit();
     };
     wc.on('did-start-loading', sync); wc.on('did-stop-loading', sync); wc.on('did-navigate', sync); wc.on('did-navigate-in-page', sync); wc.on('page-title-updated', sync);
     wc.on('did-finish-load', () => { if (this.view === view && this.allowed()) void this.inspect().catch(() => {}); });
     wc.on('did-fail-load', (_e, code, _desc, _url, isMainFrame) => {
       if (!isMainFrame || code === -3 || this.view !== view) return;
-      if ([-130, -111, -102, -105, -118].includes(code)) void this.lock('The page lost its connection. Check the proxy and verify again.', 'error');
+      if (code === -111 && this.upstreamStatus === 429 && this.allowed()) { this.state.message = 'The proxy rate-limited this page. Wait before reloading; your session is preserved.'; this.emit(); }
+      else if ([-130, -111, -102, -105, -118].includes(code)) void this.lock('The page lost its connection. Check the proxy and verify again.', 'error');
       else { this.state.message = `The page could not load (network code ${code}). Try another HTTPS address or verify again.`; this.log(this.state.message, 'warning'); }
     });
     wc.on('render-process-gone', () => { if (this.view === view) void this.lock('The browser stopped unexpectedly. Verify to restart it.', 'error'); });
@@ -174,11 +241,13 @@ export class AccountBrowser {
   }
   async verify(background = false) {
     if (this.checking) return;
+    if (Date.now() < this.retryAt) { this.state.retryAt = this.retryAt; this.emit(); return; }
+    const wasReady = this.allowed();
     const token = ++this.generation;
     if (!this.store.active.proxy.host) { this.state.message = 'Add a proxy host and port in Connections first.'; this.emit(); return; }
     this.checking = true;
     this.upstreamStatus = undefined;
-    if (!background) { this.state.status = 'checking'; this.state.message = 'Checking your proxy route and apparent country…'; this.emit(); }
+    if (!background && !wasReady) { this.state.status = 'checking'; this.state.message = 'Checking your proxy route and apparent country…'; this.emit(); }
     try {
       trace('verification started'); if (!this.bridge) await this.configure();
       if (token !== this.generation) return;
@@ -188,6 +257,7 @@ export class AccountBrowser {
       let data: Record<string, unknown>;
       try {
         trace('fetching network evidence'); const response = await this.getSession().fetch(checkURL, { signal: this.abort.signal, redirect: 'error', cache: 'no-store', credentials: 'omit' });
+        if (response.status === 429) throw new CheckRateLimit(retryDelay(response.headers.get('retry-after')));
         if (!response.ok) throw new Error(`Check failed: ${response.status}`);
         const content = await response.text();
         if (content.length > 40_000) throw new Error('Invalid location response');
@@ -207,16 +277,30 @@ export class AccountBrowser {
       trace('creating browser view'); await this.createView(); trace('browser view configured');
       if (token !== this.generation) return;
       this.validUntil = Date.now() + lifetime;
+      this.nextCheck = Date.now() + 45_000; this.retryAt = 0; this.retryCount = 0; this.state.retryAt = undefined;
       this.state.status = 'ready'; this.state.message = 'Proxy country verified. Browser settings are applied; audience region is not measured.';
       this.state.cookieCount = (await this.getSession().cookies.get({})).length;
       trace('reading browser evidence'); await this.inspect(); trace('evidence complete'); this.applyBounds();
       if (!background) this.log(`Connection verified in ${network.country}. Managed browsing unlocked.`, 'success');
       this.emit();
     } catch (error) {
-      if (token === this.generation) await this.lock(connectionError(error, this.upstreamStatus), 'error');
+      if (token === this.generation) {
+        if (error instanceof CheckRateLimit || this.upstreamStatus === 429) {
+          const delay = Math.max(error instanceof CheckRateLimit ? error.delay : this.upstreamRetryDelay, this.retryCount > 0 ? 30_000 * 2 ** Math.min(this.retryCount, 5) : 0);
+          const message = error instanceof CheckRateLimit ? error.message : connectionError(null, 429);
+          const count = ++this.retryCount;
+          if (!wasReady || Date.now() >= this.validUntil) await this.lock(message, 'error');
+          else this.state.message = `${message} Existing verification remains valid briefly; retry scheduled.`;
+          this.retryCount = count; this.retryAt = Date.now() + delay; this.nextCheck = this.retryAt;
+          if (count > 2) this.state.message = `${message} Automatic retries paused. Verify manually after the cooldown.`;
+          this.state.retryAt = this.retryAt; this.checking = false; this.emit();
+        } else await this.lock(connectionError(error, this.upstreamStatus), 'error');
+      }
     } finally { if (token === this.generation) this.checking = false; }
   }
   async lock(message = 'Browser locked. Saved cookies and login sessions are preserved.', status: 'locked' | 'error' = 'locked') {
+    this.retryAt = 0; this.nextCheck = 0;
+    this.dock();
     ++this.generation; this.checking = false; this.abort?.abort(); this.abort = null; this.validUntil = 0;
     const old = this.view; this.view = null;
     if (old) { if (!this.win.isDestroyed()) this.win.contentView.removeChildView(old); if (!old.webContents.isDestroyed()) old.webContents.close(); }
@@ -228,7 +312,7 @@ export class AccountBrowser {
     if (bridge) await bridge.close(true);
     this.log(message, status === 'error' ? 'warning' : 'info');
   }
-  async reset() { await this.lock(); this.state = lockedState(); this.emit(); }
+  async reset() { await this.lock(); this.retryCount = 0; this.state = lockedState(); this.emit(); }
   async navigate(input: string) {
     if (!this.allowed()) throw new Error('Verify the connection before opening a website.');
     const url = normalizeURL(input, testMode);
@@ -241,6 +325,41 @@ export class AccountBrowser {
     if (action === 'back' && wc.navigationHistory.canGoBack()) wc.navigationHistory.goBack();
     else if (action === 'forward' && wc.navigationHistory.canGoForward()) wc.navigationHistory.goForward();
     else if (action === 'reload') wc.reload(); else if (action === 'stop') wc.stop();
+    else if (action.startsWith('zoom-')) {
+      const steps = [0.5, 0.67, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3];
+      const current = wc.getZoomFactor();
+      const next = action === 'zoom-reset' ? 1 : action === 'zoom-in' ? steps.find(n => n > current + 0.01) ?? 3 : [...steps].reverse().find(n => n < current - 0.01) ?? 0.5;
+      wc.setZoomFactor(next); this.state.zoom = next; this.emit();
+    } else if (action === 'detach') this.detach();
+    else if (action === 'dock') this.dock();
+    else if (action === 'fullscreen') { if (!this.floating) this.detach(); this.floating?.setFullScreen(!this.floating.isFullScreen()); }
+  }
+  private detach() {
+    if (!this.view || this.floating) { this.floating?.focus(); return; }
+    const floating = new BaseWindow({ width: 1200, height: 850, minWidth: 600, minHeight: 400, backgroundColor: '#101113', title: `${this.store.active.name} — RegionDesk` });
+    floating.setMenu(Menu.buildFromTemplate([{ label: 'Browser', submenu: [
+      { label: 'Back', click: () => this.action('back') }, { label: 'Forward', click: () => this.action('forward') },
+      { label: 'Reload', accelerator: 'Ctrl+R', click: () => this.action('reload') },
+      { label: 'Zoom in', click: () => this.action('zoom-in') }, { label: 'Zoom out', click: () => this.action('zoom-out') }, { label: 'Reset zoom', click: () => this.action('zoom-reset') },
+      { label: 'Full screen (F11 / Esc)', click: () => this.action('fullscreen') },
+      { label: 'Return to workspace', click: () => this.dock() },
+      { label: 'Lock browser', click: () => { void this.lock(); } }
+    ] }]));
+    this.win.contentView.removeChildView(this.view); floating.contentView.addChildView(this.view);
+    this.floating = floating; this.state.detached = true;
+    floating.on('resize', () => this.applyBounds());
+    const sync = (fullscreen: boolean) => { this.state.fullscreen = fullscreen; this.applyBounds(); this.emit(); };
+    floating.on('enter-full-screen', () => sync(true)); floating.on('leave-full-screen', () => sync(false));
+    floating.on('close', () => this.dock(false));
+    this.applyBounds(); this.emit(); this.view.webContents.focus();
+  }
+  private dock(close = true) {
+    const floating = this.floating; if (!floating) return;
+    this.floating = null;
+    if (this.view) { floating.contentView.removeChildView(this.view); if (!this.win.isDestroyed()) this.win.contentView.addChildView(this.view); }
+    this.state.detached = false; this.state.fullscreen = false;
+    if (close && !floating.isDestroyed()) floating.close();
+    this.applyBounds(); this.emit();
   }
   setBounds(bounds: Bounds | null) {
     if (bounds) {
@@ -252,6 +371,7 @@ export class AccountBrowser {
   }
   private applyBounds() {
     if (!this.view) return;
+    if (this.floating) { const { width, height } = this.floating.getContentBounds(); this.view.setBounds({ x: 0, y: 0, width, height }); this.view.setVisible(this.allowed()); return; }
     this.view.setVisible(!!this.bounds && this.allowed() && !!this.state.url);
     if (this.bounds) this.view.setBounds(this.bounds);
   }

@@ -32,3 +32,11 @@ test('connection errors never echo upstream credentials', () => {
   assert.match(connectionError('net::ERR_TUNNEL_CONNECTION_FAILED', 407), /authentication failed.*HTTP 407/);
   assert.match(connectionError('net::ERR_TUNNEL_CONNECTION_FAILED', 403), /refused.*HTTP 403/);
 });
+
+test('legacy profiles migrate to restrictive permissions and reject unexpected grants', () => {
+  const p = defaultProfile();
+  const migrated = validateProfile(p);
+  assert.deepEqual(migrated.permissions, {camera:false,microphone:false,notifications:false,clipboard:false,fullscreen:true});
+  assert.throws(() => validateProfile({...p, permissions: {camera:true, microphone:false, notifications:false, clipboard:false, fullscreen:true, network:true} as any}), /permissions/);
+  assert.throws(() => validateProfile({...p, permissions: {camera:'true'} as any}), /permissions/);
+});

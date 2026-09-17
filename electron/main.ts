@@ -71,6 +71,7 @@ async function createWindow() {
     await writeFile(result.filePath, JSON.stringify(report, null, 2)); return result.filePath;
   });
   handle('provider:open', async id => { if (!Object.hasOwn(providers, id)) throw new Error('Unknown provider.'); await shell.openExternal(providers[id]); });
+  win.on('close', () => { void manager.lock(); });
   win.on('closed', () => { win = null; });
   if (process.env.REGIONDESK_DEV_URL && !app.isPackaged) await win.loadURL(process.env.REGIONDESK_DEV_URL);
   else await win.loadFile(path.join(__dirname, '../dist/index.html'));

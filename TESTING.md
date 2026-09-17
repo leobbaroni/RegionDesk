@@ -30,11 +30,11 @@ The test harness uses an ephemeral certificate trusted by exact SHA-256 pin only
 
 ## Verified build: 17 September 2026
 
-The production build, six unit tests, and seventeen desktop test groups passed. `node scripts/package-smoke.mjs` checks the unpacked packaged app. The authoritative portable launch check is `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/portable-smoke.ps1`: it launches the executable extracted from the final ZIP with no debugging or sandbox-disabling arguments and requires the workspace and credential-storage status to render. These smoke checks use the normal application data directory; they do not configure a proxy or log in.
+The production build, seven unit tests, and twenty-three desktop test groups passed. `node scripts/package-smoke.mjs` checks the unpacked packaged app. The authoritative portable launch check is `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/portable-smoke.ps1`: it launches the executable extracted from the final ZIP with no debugging or sandbox-disabling arguments and requires the workspace and credential-storage status to render. These smoke checks use the normal application data directory; they do not configure a proxy or log in.
 
 The original self-extracting portable reproduced `ERR_FAILED (-2)` from Windows Temp. Chromium logged repeated GPU-process exits with code `-2147483645` (`0x80000003`). The same archive worked outside Temp or with sandboxing disabled. A custom-protocol experiment still failed, ruling out a file-URL-only problem; that experiment was removed. v0.1.1 ships a ZIP whose extracted executable runs normally with sandboxing enabled. The original Playwright smoke test missed this location-specific sandbox launch failure. The native regression test reproduced it before the packaging correction.
 
-The portable archive is `release/RegionDesk-0.1.3-Windows.zip`; extract all files and run `RegionDesk.exe`. It is unsigned and uses the default Electron icon.
+The portable archive is `release/RegionDesk-0.1.4-Windows.zip`; extract all files and run `RegionDesk.exe`. It is unsigned and uses the default Electron icon.
 
 ## Live proxy regression: 17 September 2026
 
@@ -51,3 +51,9 @@ The bounded live Google comparison and final v0.1.3 search are documented in [GO
 - Live HTTPS-proxy or SOCKS5-provider compatibility (the automated upstream fixture uses HTTP CONNECT).
 
 These are limitations, not passing checks. TikTok web actions remain user-controlled.
+
+## v0.1.4 browser controls and rate limits
+
+Startup 429 stays locked and retries after the cooldown. Service/tunnel 429s preserve an existing verified page, respect Retry-After and recover automatically. A simulated expired lease still locks browsing. Tests exercise toolbar and keyboard zoom, floating/full-screen/HTML fullscreen and close-to-dock, preserved browser identity, default camera/notification denial, configured grants, and blocked private-network requests. Profile switching closes the detached browser. Screenshots cover full/compact controls and the permissions editor. See [controls](docs/BROWSER_CONTROLS.md).
+
+The final ZIP-extracted v0.1.4 passed both package checks. A native launch with a temporary fixed debugging port verified the saved LA proxy, then requested api.ipify.org before and after moving the same page to a floating window. Both readings matched the verified US endpoint, en-US and America/Los_Angeles; navigator.webdriver was false. Fullscreen and docking passed. The owned TCP listeners were restricted to 127.0.0.1 (proxy bridge and the temporary test debugger). Evidence: `.impeccable/review/live-controls.json`. No Windows Firewall settings were changed; this is not comprehensive real-provider leak certification.

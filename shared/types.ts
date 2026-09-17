@@ -8,8 +8,12 @@ export interface Profile {
   id: string; name: string; country: string; city: string; locale: string;
   timezone: string; latitude: number; longitude: number;
   locationPermission: 'blocked' | 'configured'; proxy: ProxyConfig;
+  permissions?: BrowserPermissions;
   createdAt: string; updatedAt: string;
 }
+export interface BrowserPermissions { camera: boolean; microphone: boolean; notifications: boolean; clipboard: boolean; fullscreen: boolean }
+export const defaultPermissions: BrowserPermissions = { camera: false, microphone: false, notifications: false, clipboard: false, fullscreen: true };
+export type BrowserAction = 'back' | 'forward' | 'reload' | 'stop' | 'zoom-in' | 'zoom-out' | 'zoom-reset' | 'detach' | 'dock' | 'fullscreen';
 export type ProfileInput = Omit<Profile, 'createdAt' | 'updatedAt'> & { password?: string; clearPassword?: boolean };
 export interface NetworkEvidence {
   ip: string; country: string; city: string; timezone: string;
@@ -27,6 +31,7 @@ export interface RuntimeState {
   message: string; network?: NetworkEvidence; browser?: BrowserEvidence;
   url: string; title: string; loading: boolean; canGoBack: boolean; canGoForward: boolean;
   cookieCount: number | null;
+  zoom?: number; detached?: boolean; fullscreen?: boolean; retryAt?: number;
 }
 export interface Activity { id: string; at: string; kind: 'info' | 'success' | 'warning'; message: string; profileId: string }
 export interface AppState {
@@ -43,7 +48,7 @@ export interface RegionDeskAPI {
   verify(): Promise<AppState>;
   disconnect(): Promise<AppState>;
   navigate(url: string): Promise<AppState>;
-  browserAction(action: 'back' | 'forward' | 'reload' | 'stop'): Promise<void>;
+  browserAction(action: BrowserAction): Promise<void>;
   setBrowserBounds(bounds: Bounds | null): Promise<void>;
   inspectBrowser(): Promise<AppState>;
   clearSession(): Promise<AppState>;

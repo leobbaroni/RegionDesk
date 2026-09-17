@@ -4,7 +4,7 @@ A local Windows workspace with an embedded Chromium browser, separate persistent
 
 ## Run
 
-Extract `release/RegionDesk-0.1.3-Windows.zip` into a normal folder and open `RegionDesk.exe` inside it. Keep all extracted files together. The ZIP replaces the self-extracting EXE, which failed to launch sandboxed Chromium from Windows Temp on this machine. This portable, unsigned build does not install a system proxy or change Windows language/timezone.
+Extract `release/RegionDesk-0.1.4-Windows.zip` into the stable `release/RegionDesk-Windows` folder and open `RegionDesk.exe` inside it. Keep all extracted files together. The ZIP replaces the self-extracting EXE, which failed to launch sandboxed Chromium from Windows Temp on this machine. This portable, unsigned build does not install a system proxy or change Windows language/timezone.
 
 For development (Node.js 22.12 or newer):
 
@@ -35,14 +35,14 @@ No free or paid proxy is bundled. The Connections screen compares vendor offers 
 - Persistent, separate cookie jars, site storage, cache and proxy settings per profile.
 - Regional presets for the US (East/West), UK, Canada, Australia, Germany, France, Spain, Portugal, Brazil, Japan and Singapore; editable custom regions.
 - Browser language/Accept-Language, Intl locale, IANA timezone and optional coarse configured geolocation.
-- Location requests blocked by default; camera, microphone, display capture, notifications and device permissions denied.
+- Profile controls for camera, microphone, notifications, clipboard and website fullscreen. Location is blocked or configured; local-network access, screen capture and devices stay blocked.
 - Non-proxied WebRTC UDP restricted and QUIC disabled. These are policies, not a claim of universal fingerprint protection.
 - Chromium local DNS resolution and DNS prefetching blocked; website hostnames go through the proxy. The local bridge still resolves your proxy provider's hostname.
 - Regional language applied to child contexts before their scripts start. Dedicated-worker and cross-site-frame language/timezone consistency are tested.
 - Genuine Chromium Client Hints preserved when applying regional preferences; diagnostics show the observed automation flag and Client Hints platform.
 - Fixed upstream proxy routing without a DIRECT fallback, a connection lease, periodic verification and browser shutdown on check failure.
 - Encrypted proxy-password persistence via Electron safeStorage (Windows protection); no password/cookie values in reports or logs.
-- Back, forward, refresh/stop, HTTPS address entry, same-profile popup navigation, TikTok shortcuts and file upload through the web page.
+- Back, forward, refresh/stop, page zoom, native context menu, floating/full-screen browser, HTTPS address entry, same-profile popup navigation, TikTok shortcuts and file upload through the web page.
 - Real browser/network readings, in-memory activity log, JSON diagnostic export, per-profile session clearing and deletion.
 - Keyboard navigation, Ctrl+L for address focus and reduced-motion support.
 
@@ -72,10 +72,12 @@ npm run build
 npm run test:desktop
 npm run package
 node scripts/package-smoke.mjs
-Expand-Archive release/RegionDesk-0.1.3-Windows.zip release/RegionDesk-0.1.3-Windows
+Expand-Archive release/RegionDesk-0.1.4-Windows.zip release/RegionDesk-Windows
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/portable-smoke.ps1
 ```
 
 The desktop tests launch the real Electron app with new, isolated test data and a local authenticated proxy/HTTPS fixture. They need OpenSSL; on Windows the default is the copy bundled with Git. Override `OPENSSL_BIN` if needed. The fixture's exact certificate is pinned only in unpackaged test runs; packaged builds ignore test overrides. Set `REGIONDESK_CAPTURE=1` to capture the UI into `.impeccable/review/`.
 
 See [TESTING.md](TESTING.md) for the verification boundary and [proxy options](docs/PROXY_OPTIONS.md) for the free/paid comparison.
+
+See [browser controls and 429 recovery](docs/BROWSER_CONTROLS.md) and the [related-project integration review](docs/RELATED_PROJECTS.md).

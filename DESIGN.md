@@ -152,6 +152,8 @@ Amber pending, violet checking, green ready and rose error each combine a tinted
 
 **The Evidence Rule.** Color supports a written state; configured values must never look like measured results merely because they are saved.
 
+Browser controls include a compact second toolbar for zoom, pop-out, full screen and permissions. A visible cooldown explains rate-limited verification. The floating browser uses native Windows chrome and a Browser menu, preserving the existing page. Profile permissions use labelled native selects with the same field styling as other settings.
+
 ## Typography
 
 Inter Variable is used throughout, with Segoe UI and the system sans-serif fallback. There is no separate display or monospace family. The hierarchy is compact and predominantly regular to medium weight; large promotional typography is absent from the workspace.
