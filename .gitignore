@@ -5,3 +5,5 @@ release/
 .test-data/
 .impeccable/review/
 *.log
+.tools/
+.setup/

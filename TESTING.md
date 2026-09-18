@@ -69,3 +69,7 @@ Both packaged launch checks passed for v0.1.5, including native sandboxed launch
 Build, 10 unit tests and 27 desktop groups passed. Real drag gestures reorder tabs in the workspace and floating browser; both windows share the saved order. The floating shell provides visible tab switching, new/close tabs, address entry and history suggestions. Tests check page placement below the controls, preserved page state, native and website fullscreen, close-to-dock, and that the floating shell cannot invoke profile-management IPC. Screenshots cover 1184px and 600px content widths.
 
 Both v0.1.6 packaged-launch checks passed, including native sandboxed launch from the final ZIP at the stable portable path. The desktop shortcut reopened the updated app. No new live-provider test was performed.
+
+## Folder-local Windows setup: 19 September 2026
+
+`Setup.bat --no-pause` passed when launched from outside the project directory, detecting existing Node and skipping already installed dependencies. An isolated copy in a path containing spaces, with Node removed from PATH and no node_modules, downloaded and checksum-verified portable Node 22.22.0 and installed the locked packages. The completed setup also installed the Electron runtime and built successfully using that portable Node. Profiles remain in the existing application data location. Setup does not alter system PATH or require an administrator installer. The normal app launch UI was not re-tested for this script-only change.

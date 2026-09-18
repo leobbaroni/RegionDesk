@@ -37,7 +37,13 @@ No app subscription or bundled proxy. Website logins, uploads and publishing rem
 
 ### Run from source
 
-Requires **Windows**, **Git** and **Node.js 22.12+**.
+**Windows double-click setup:** extract or clone the complete project into the folder where you want to keep it, then run **`Setup.bat`**. It reuses compatible Node.js (22.12+ on the 22.x line, or 24+) and installed dependencies. If Node is missing, it downloads a checksum-verified portable runtime into `.tools/`. Missing or mismatched dependencies are installed from `package-lock.json`, then the app is built in that same folder. No administrator install or system PATH change is needed.
+
+Launch with **`Start RegionDesk.bat`**. It also runs setup if dependencies or build files are missing. Run `Setup.bat` again after updating the source. Keep the scripts with the complete project; the BAT file alone does not contain the app. Initial downloads need internet access. Existing profiles and website data continue to use `%APPDATA%/RegionDesk`.
+
+For unattended setup, use `Setup.bat --no-pause`; a failed step returns a nonzero exit code. Dependency-check details are saved in `.setup/dependencies.log`.
+
+For manual setup, install **Git** and a compatible **Node.js** version on Windows:
 
 ```powershell
 git clone https://github.com/leobbaroni/RegionDesk.git
