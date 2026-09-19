@@ -24,6 +24,7 @@ export function validateProfile(raw: ProfileInput, previous?: Profile): Profile 
   if (!Number.isFinite(raw.latitude) || Math.abs(raw.latitude) > 90 || !Number.isFinite(raw.longitude) || Math.abs(raw.longitude) > 180) throw new Error('Enter valid latitude and longitude coordinates.');
   if (!['blocked', 'configured'].includes(raw.locationPermission)) throw new Error('Choose a location permission.');
   const permissions = { ...defaultPermissions, ...raw.permissions };
+  if (raw.blockTrackers !== undefined && typeof raw.blockTrackers !== 'boolean') throw new Error('Invalid tracker-blocking setting.');
   if (Object.keys(permissions).some(key => !Object.hasOwn(defaultPermissions, key)) || Object.values(permissions).some(value => typeof value !== 'boolean')) throw new Error('Invalid browser permissions.');
   const p = raw.proxy;
   if (!p || !['http', 'https', 'socks5'].includes(p.protocol)) throw new Error('Choose a supported proxy protocol.');
@@ -32,7 +33,7 @@ export function validateProfile(raw: ProfileInput, previous?: Profile): Profile 
   if (!Number.isInteger(p.port) || p.port < 1 || p.port > 65535) throw new Error('Proxy port must be between 1 and 65535.');
   if (raw.password !== undefined && (typeof raw.password !== 'string' || raw.password.length > 1024 || /[\r\n\0]/.test(raw.password))) throw new Error('Invalid proxy password.');
   return { id: raw.id, name, country, city: cleanString(raw.city, 80, 'city'), locale, timezone,
-    latitude: raw.latitude, longitude: raw.longitude, locationPermission: raw.locationPermission, permissions,
+    latitude: raw.latitude, longitude: raw.longitude, locationPermission: raw.locationPermission, permissions, blockTrackers: raw.blockTrackers ?? false,
     proxy: { protocol: p.protocol, host, port: p.port, username: cleanString(p.username, 256, 'proxy username'),
       provider: cleanString(p.provider, 80, 'provider name'), hasPassword: previous?.proxy.hasPassword ?? false },
     createdAt: previous?.createdAt ?? new Date().toISOString(), updatedAt: new Date().toISOString() };

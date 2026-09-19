@@ -79,6 +79,7 @@ const guest = async expression => app.evaluate(async ({ webContents }, { code, u
   if (!wc) throw new Error('No guest page');
   return wc.executeJavaScript(code);
 }, { code: expression, url: (await api('getState')).runtime.url });
+const waitGuest = () => page.waitForFunction(async () => { const s = await window.regiondesk.getState(); return !!s.runtime.url && !s.runtime.loading; });
 const capture = async name => {
   if (process.env.REGIONDESK_CAPTURE !== '1') return;
   await page.evaluate(() => document.fonts.ready);
@@ -101,6 +102,7 @@ try {
   await capture('connections.png');
   await page.getByRole('button', { name: 'Profiles', exact: true }).click();
   await capture('profiles.png');
+  await page.getByText('Advanced regional settings and permissions', {exact:true}).click();
   await page.getByLabel('Camera permission').scrollIntoViewIfNeeded();
   await capture('profile-permissions.png');
   await page.getByRole('button', { name: 'Diagnostics', exact: true }).click();
@@ -109,6 +111,7 @@ try {
   await capture('history-empty.png');
   pass('all five app screens render at supported desktop sizes');
   await page.getByRole('button', { name: 'Profiles', exact: true }).click();
+  await page.getByText('Advanced regional settings and permissions', {exact:true}).click();
   const blocked = page.getByRole('radio', { name: /Block location requests/ });
   const configured = page.getByRole('radio', { name: /Use configured coordinates/ });
   assert.equal(await blocked.isChecked(), true);
@@ -134,9 +137,9 @@ try {
   await page.getByLabel('Username', { exact: true }).fill(username);
   await page.getByLabel('Password', { exact: true }).fill(password);
   await page.getByLabel('Provider label', { exact: true }).fill('Local verification fixture');
-  assert.equal(await page.getByRole('button', { name: 'Verify connection', exact: true }).isDisabled(), true);
-  await page.getByRole('button', { name: 'Save connection', exact: true }).click();
-  await page.getByText('Connection saved. Run verification before browsing.', { exact: true }).waitFor();
+  assert.equal(await page.getByRole('button', { name: 'Check saved connection', exact: true }).isDisabled(), true);
+  await page.getByRole('button', { name: 'Save and connect', exact: true }).click();
+  await page.waitForFunction(async () => (await window.regiondesk.getState()).runtime.status === 'ready');
   pass('connection form saves credentials and prevents verification of unsaved edits');
   const savedProfile = (await api('getState')).profiles[0];
   await api('saveProfile', { ...savedProfile, password: 'invalid-fixture-password' });
@@ -257,6 +260,34 @@ try {
   const geolocationDenied = await guest("new Promise(resolve => navigator.geolocation.getCurrentPosition(() => resolve(false), e => resolve(e.code === 1), {timeout:2000}))");
   assert.equal(geolocationDenied, true); pass('default geolocation permission denies coordinates');
   const firstTab = (await api('getState')).browsing.activeTabId;
+  const browserProfile = (await api('getState')).profiles.find(p => p.id === a.id);
+  await api('saveProfile', { ...browserProfile, blockTrackers: true });
+  await api('verify'); await api('navigate', `${base}/page`);
+  await waitGuest();
+  await page.getByRole('button', { name: 'Bookmark this page', exact: true }).click();
+  assert.equal((await api('getState')).browsing.bookmarks[0].url, `${base}/page`);
+  await page.getByRole('button', { name: 'Find in page', exact: true }).click();
+  await page.getByLabel('Find text', { exact: true }).fill('Local browser test');
+  await page.waitForFunction(async () => (await window.regiondesk.getState()).runtime.find?.matches > 0);
+  await page.getByRole('button', { name: 'Close find', exact: true }).click();
+  await app.evaluate(({ webContents }, url) => {
+    const wc = webContents.getAllWebContents().find(w => w.getURL() === url);
+    wc.sendInputEvent({ type: 'keyDown', keyCode: 'f', modifiers: ['control'] });
+    wc.sendInputEvent({ type: 'keyUp', keyCode: 'f', modifiers: ['control'] });
+  }, `${base}/page`);
+  await page.getByLabel('Find text', { exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Close find', exact: true }).click();
+  assert.ok(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].contentView.children.some(view => view.getBounds().height > 100)), 'Find shortcut must keep the page visible');
+  assert.equal(await guest("fetch('https://www.google-analytics.com/collect').then(()=>false,()=>true)"), true);
+  assert.ok((await api('getState')).runtime.blockedTrackers >= 1);
+  assert.equal((await api('getState')).runtime.status, 'ready');
+  const disposable = await api('newTab', `${base}/reopen`);
+  await api('closeTab', disposable.browsing.activeTabId);
+  await page.getByRole('button', { name: 'Reopen closed tab', exact: true }).click();
+  data = await api('getState');
+  assert.equal(data.browsing.tabs.find(t => t.id === data.browsing.activeTabId).url, `${base}/reopen`);
+  await api('closeTab', data.browsing.activeTabId); await api('selectTab', firstTab); await waitGuest();
+  pass('bookmarks, find-in-page and closed-tab recovery work; tracker blocking preserves verified routing');
   await guest("globalThis.tabMarker='retained'; true");
   const secondState = await api('newTab', `${base}/next?tab=second`);
   const secondTab = secondState.browsing.activeTabId;

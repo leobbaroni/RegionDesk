@@ -336,9 +336,18 @@ td { padding: 17px; border-top: 1px solid #2a2c34; font-size: 11px; color: #bfc1
 .floating-error span { flex: 1; }
 .floating-error button { background: transparent; border: 0; }
 .floating-loading { padding: 30px; }
-
-.android-panel { display: grid; gap: 20px; }
-.android-fields { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 16px; margin: 20px 0; }
-.android-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 20px 0; }
-.android-panel p { color: var(--text-secondary, #aaa); line-height: 1.6; max-width: 90ch; }
-.android-error { color: #ffb4a9; }
+.browser-layout.browser-focused { height: calc(100vh - 205px); min-height: 480px; }
+.bookmark-bar, .find-bar { display: flex; flex-shrink: 0; align-items: center; gap: 8px; padding: 6px 12px; border-bottom: 1px solid var(--border); background: var(--panel); }
+.bookmark-bar button, .find-bar button { background: transparent; border: 0; border-radius: 4px; min-width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; }
+.bookmark-bar button:hover, .find-bar button:hover { background: var(--control-hover); }
+.bookmark-items { display: flex; flex: 1; gap: 6px; min-width: 0; overflow-x: auto; align-items: center; }
+.bookmark-item { display: inline-flex; flex-shrink: 0; align-items: center; }
+.bookmark-item > button:first-child { display: block; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; padding: 0 6px; }
+.bookmark-item > button:last-child { min-width: 20px; color: var(--muted); }
+.bookmark-hint { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.find-bar { justify-content: flex-end; }
+.find-bar input { width: min(300px, 45%); }
+.find-bar > span { min-width: 90px; font-size: 12px; color: var(--muted); }
+.advanced-settings > summary, .provider-section > summary { cursor: pointer; padding: 18px 24px; color: var(--control-text); font-size: 13px; }
+.advanced-settings { border-top: 1px solid var(--border); }
+.provider-section:not([open]) { padding: 0; }

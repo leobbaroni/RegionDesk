@@ -8,6 +8,7 @@ import type { ProfileStore } from './store';
 import type { Activity, AppState, Bounds, BrowserEvidence, NetworkEvidence, RuntimeState } from '../shared/types';
 import { defaultPermissions, type BrowsingState } from '../shared/types';
 import { BrowsingStore } from './browsing-store';
+import { blocksTracker } from './privacy';
 
 export const lockedState = (): RuntimeState => ({ status: 'locked', message: 'Add a connection and verify its region to unlock browsing.', url: '', title: '', loading: false, canGoBack: false, canGoForward: false, cookieCount: null });
 const productionCheck = 'https://ipwho.is/';
@@ -63,8 +64,8 @@ export class AccountBrowser {
     const result = this.tabQueue.then(task, task); this.tabQueue = result.catch(() => {}); return result;
   }
   private reportTabError(error: unknown) { this.log(error instanceof Error ? error.message : 'The tab action failed.', 'warning'); }
-  private focusShell(command: 'address' | 'history' | 'permissions') {
-    const target = command === 'address' && this.floating ? this.floating : this.win;
+  private focusShell(command: 'address' | 'history' | 'permissions' | 'find') {
+    const target = ['address', 'find'].includes(command) && this.floating ? this.floating : this.win;
     target.show(); target.focus(); target.webContents.focus(); target.webContents.send('browser:command', command);
   }
   openWorkspace(command: 'history' | 'permissions') { this.focusShell(command); }
@@ -73,6 +74,8 @@ export class AccountBrowser {
   private activateView(view: WebContentsView | null) {
     if (this.view === view) return;
     const previous = this.view;
+    if (previous && !previous.webContents.isDestroyed()) previous.webContents.stopFindInPage('clearSelection');
+    this.state.find = undefined;
     if (previous) { previous.setVisible(false); if (this.floating) { this.floating.contentView.removeChildView(previous); this.win.contentView.addChildView(previous); } }
     this.view = view;
     if (view && this.floating) { this.win.contentView.removeChildView(view); this.floating.contentView.addChildView(view); }
@@ -99,6 +102,14 @@ export class AccountBrowser {
     this.syncActiveView();
   }
   newTab(url = '') { return this.tabTask(async () => { this.browsing.newTab(this.store.activeId, url); await this.showActiveTab(); this.emit(); if (!url) this.focusShell('address'); }); }
+  reopenTab() { return this.tabTask(async () => { this.browsing.reopen(this.store.activeId); await this.showActiveTab(); this.emit(); }); }
+  findInPage(text: string, forward = true) {
+    if (typeof text !== 'string' || text.length > 500 || typeof forward !== 'boolean') throw new Error('Enter up to 500 characters to find.');
+    const wc = this.view?.webContents;
+    if (!wc || !this.allowed()) return;
+    if (!text) { wc.stopFindInPage('clearSelection'); this.state.find = undefined; this.emit(); }
+    else wc.findInPage(text, { forward });
+  }
   selectTab(id: string) { return this.tabTask(async () => { this.browsing.select(this.store.activeId, id); await this.showActiveTab(); this.emit(); }); }
   closeTab(id: string) { return this.tabTask(async () => {
     this.browsing.close(this.store.activeId, id);
@@ -157,6 +168,9 @@ export class AccountBrowser {
         const network = ['https:', 'wss:'].includes(url.protocol) || localTest && ['http:', 'ws:'].includes(url.protocol);
         allowed = id === this.store.activeId && (diagnostic || this.allowed()) && network && (localTest || !isPrivateHost(url.hostname));
       } catch { /* malformed URLs stay blocked */ }
+      if (allowed && details.url !== checkURL && this.store.active.blockTrackers && blocksTracker(details.url, details.webContents?.getURL() || details.referrer, details.resourceType)) {
+        allowed = false; this.state.blockedTrackers = (this.state.blockedTrackers || 0) + 1; this.emit();
+      }
       callback({ cancel: !allowed });
     });
     ses.webRequest.onBeforeSendHeaders((details, callback) => {
@@ -232,6 +246,8 @@ export class AccountBrowser {
     wc.on('before-input-event', (event, input) => {
       if (input.type !== 'keyDown') return;
       const ctrl = input.control || input.meta;
+      if (ctrl && input.key.toLowerCase() === 'f') { event.preventDefault(); this.focusShell('find'); return; }
+      if (ctrl && input.shift && input.key.toLowerCase() === 't') { event.preventDefault(); void this.reopenTab().catch(error => this.reportTabError(error)); return; }
       if (ctrl && ['t', 'w', 'l', 'h', 'Tab'].includes(input.key)) {
         event.preventDefault();
         if (input.key === 't') void this.newTab().catch(error => this.reportTabError(error));
@@ -244,6 +260,7 @@ export class AccountBrowser {
       if (action) { event.preventDefault(); this.action(action); }
       if (input.key === 'Escape' && this.floating?.isFullScreen()) { this.floating.setFullScreen(false); }
     });
+    wc.on('found-in-page', (_event, result) => { if (this.view === view) { this.state.find = { active: result.activeMatchOrdinal, matches: result.matches }; this.emit(); } });
     wc.on('zoom-changed', (_event, direction) => this.action(direction === 'in' ? 'zoom-in' : 'zoom-out'));
     wc.on('context-menu', (_event, details) => {
       if (!this.allowed()) return;
@@ -446,7 +463,11 @@ export class AccountBrowser {
     this.floating.setMenu(Menu.buildFromTemplate([{ label: 'Browser', submenu: [
       { label: 'Address…', click: () => this.focusShell('address') },
       { label: 'New tab', click: () => { void this.newTab().catch(error => this.reportTabError(error)); } },
+      { label: 'Reopen closed tab', enabled: this.browsing.get(this.store.activeId).closedTabs.length > 0, click: () => { void this.reopenTab().catch(error => this.reportTabError(error)); } },
+      { label: 'Find in page', click: () => this.focusShell('find') },
       { label: 'Close tab', click: () => { void this.closeTab(data.activeTabId).catch(error => this.reportTabError(error)); } },
+      { label: 'Reopen closed tab', accelerator: 'Ctrl+Shift+T', enabled: data.closedTabs.length > 0, click: () => { void this.reopenTab().catch(error => this.reportTabError(error)); } },
+      { label: 'Find in page', accelerator: 'Ctrl+F', click: () => this.focusShell('find') },
       { label: 'Back', click: () => this.action('back') }, { label: 'Forward', click: () => this.action('forward') },
       { label: 'Reload', accelerator: 'Ctrl+R', click: () => this.action('reload') },
       { label: 'Zoom in', click: () => this.action('zoom-in') }, { label: 'Zoom out', click: () => this.action('zoom-out') }, { label: 'Reset zoom', click: () => this.action('zoom-reset') },

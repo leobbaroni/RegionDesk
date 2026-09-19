@@ -4,7 +4,6 @@ import { writeFile } from 'node:fs/promises';
 import { ProfileStore } from './store';
 import { AccountBrowser } from './browser';
 import { BrowsingStore } from './browsing-store';
-import { AndroidManager } from './android';
 import type { AppState } from '../shared/types';
 
 if (!app.isPackaged && process.env.REGIONDESK_TEST === '1' && process.env.REGIONDESK_TEST_DATA) app.setPath('userData', process.env.REGIONDESK_TEST_DATA);
@@ -19,7 +18,6 @@ let win: BrowserWindow | null = null;
 let manager: AccountBrowser;
 let store: ProfileStore;
 let browsing: BrowsingStore;
-let android: AndroidManager;
 let quitting = false;
 let queue = Promise.resolve<unknown>(undefined);
 const providers: Record<string, string> = { 'webshare-free': 'https://www.webshare.io/free-proxy', 'webshare-isp': 'https://www.webshare.io/static-residential-proxy', iproyal: 'https://iproyal.com/pricing/static-residential-proxies/' };
@@ -28,7 +26,7 @@ function state(): AppState { return { profiles: store.profiles, activeId: store.
 function emit() { if (win && !win.isDestroyed()) { const current = state(); win.webContents.send('state:update', current); manager.emitFloatingState(current); } }
 function handle(name: string, fn: (...args: any[]) => unknown, serial = true) {
   ipcMain.handle(name, (event, ...args) => {
-    const floatingChannels = ['state:get', 'tabs:new', 'tabs:select', 'tabs:close', 'tabs:move', 'tabs:reorder', 'browser:navigate', 'browser:action', 'workspace:open'];
+    const floatingChannels = ['state:get', 'tabs:new', 'tabs:select', 'tabs:close', 'tabs:move', 'tabs:reorder', 'tabs:reopen', 'bookmarks:toggle', 'browser:find', 'browser:navigate', 'browser:action', 'workspace:open'];
     const trusted = win && (event.sender === win.webContents || floatingChannels.includes(name) && manager.isFloatingShell(event.sender));
     if (!trusted || event.senderFrame !== event.sender.mainFrame) throw new Error('Untrusted IPC caller.');
     const run = async () => { try { return await fn(...args); } catch (error) { throw new Error(error instanceof Error ? error.message : 'The action could not be completed.'); } };
@@ -38,7 +36,6 @@ function handle(name: string, fn: (...args: any[]) => unknown, serial = true) {
 }
 async function createWindow() {
   store = new ProfileStore();
-  android = new AndroidManager(app.getPath('userData'));
   browsing = new BrowsingStore(app.getPath('userData'), !app.isPackaged && process.env.REGIONDESK_TEST === '1');
   win = new BrowserWindow({ width: 1440, height: 960, minWidth: 1060, minHeight: 740, backgroundColor: '#101113', title: 'RegionDesk', autoHideMenuBar: true,
     webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false, webSecurity: true } });
@@ -47,16 +44,6 @@ async function createWindow() {
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', event => event.preventDefault());
   handle('state:get', state, false);
-  handle('android:get', () => android.get(store.activeId));
-  handle('android:save', raw => android.save(store.activeId, raw));
-  handle('android:inspect', () => android.inspect(store.activeId));
-  handle('android:action', action => android.action(store.activeId, action, store.active));
-  handle('android:transfer', async () => {
-    const id = store.activeId;
-    const result = await dialog.showOpenDialog(win!, { title: 'Copy video into the paired Android device', properties: ['openFile'], filters: [{ name: 'Video', extensions: ['mp4', 'mov', 'webm', 'm4v'] }] });
-    if (result.canceled || !result.filePaths[0]) return null;
-    return android.transfer(id, result.filePaths[0]);
-  });
   handle('profile:save', async raw => { store.save(raw); await manager.reset(); emit(); return state(); });
   handle('profile:create', async () => { await manager.reset(); store.create(); emit(); return state(); });
   handle('profile:select', async id => { await manager.reset(); store.select(id); emit(); return state(); });
@@ -64,13 +51,16 @@ async function createWindow() {
     if (!store.profiles.some(p => p.id === id)) throw new Error('Profile not found.');
     if (store.profiles.length === 1) throw new Error('Keep at least one profile.');
     const result = await dialog.showMessageBox(win!, { type: 'warning', title: 'Delete profile', message: 'Delete this profile and its saved website sessions?', detail: 'This removes local cookies, credentials and settings. It does not delete the TikTok account.', buttons: ['Cancel', 'Delete profile'], defaultId: 0, cancelId: 0 });
-    if (result.response === 1) { await manager.clearSession(id); browsing.delete(id); android.remove(id); store.delete(id); await manager.reset(); emit(); }
+    if (result.response === 1) { await manager.clearSession(id); browsing.delete(id); store.delete(id); await manager.reset(); emit(); }
     return state();
   });
   handle('connection:verify', async () => { await manager.verify(); return state(); });
   handle('connection:disconnect', async () => { await manager.lock(); return state(); }, false);
   handle('browser:navigate', async url => { await manager.navigate(url); return state(); });
   handle('tabs:new', async url => { await manager.newTab(url); return state(); });
+  handle('tabs:reopen', async () => { await manager.reopenTab(); return state(); });
+  handle('bookmarks:toggle', (url, title) => { browsing.toggleBookmark(store.activeId, url, title); emit(); return state(); });
+  handle('browser:find', (text, forward) => manager.findInPage(text, forward), false);
   handle('tabs:select', async id => { await manager.selectTab(id); return state(); });
   handle('tabs:close', async id => { await manager.closeTab(id); return state(); });
   handle('tabs:move', (id, direction) => { manager.moveTab(id, direction); return state(); });

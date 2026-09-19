@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, History, LockKeyhole, Maximize2, Minus, PanelBottomClose, Plus, RefreshCw, Settings2, X } from 'lucide-react';
 import type { AppState, BrowserAction } from '../shared/types';
 import TabStrip from './TabStrip';
+import BrowserExtras from './BrowserExtras';
 
 export default function FloatingBrowser() {
   const [data, setData] = useState<AppState | null>(null);
@@ -42,7 +43,7 @@ export default function FloatingBrowser() {
       if (!ctrl) return;
       if (['l', 't', 'w', 'tab', 'r', 'h', '+', '=', '-', '0'].includes(key)) event.preventDefault();
       if (key === 'l') focusAddress();
-      if (key === 't') void run(() => api.newTab());
+      if (key === 't') void run(() => event.shiftKey ? api.reopenTab() : api.newTab());
       if (key === 'w' && data?.browsing) void run(() => api.closeTab(data.browsing!.activeTabId));
       if (key === 'tab' && data?.browsing) { const { tabs, activeTabId } = data.browsing; const i = tabs.findIndex(t => t.id === activeTabId); void run(() => api.selectTab(tabs[(i + (event.shiftKey ? -1 : 1) + tabs.length) % tabs.length].id)); }
       if (key === 'r') action('reload');
@@ -75,6 +76,7 @@ export default function FloatingBrowser() {
     </div>
     {showSuggestions && <div className="address-suggestions" id="floating-suggestions" role="listbox" aria-label="Address suggestions">{suggestions.map((entry, i) => <button key={entry.url} id={`floating-suggestion-${i}`} role="option" aria-selected={i === index} tabIndex={-1} onMouseDown={event => event.preventDefault()} onClick={() => navigate(entry.url)}><History size={14} /><span><strong>{entry.title}</strong><small>{entry.url}</small></span></button>)}</div>}
     {error && <div className="floating-error" role="alert"><span>{error}</span><button aria-label="Dismiss error" onClick={() => setError('')}><X size={15} /></button></div>}
+    {data && <BrowserExtras data={data} busy={busy} run={run} />}
     <div className="floating-page" ref={guest}>{!runtime?.url && <div className="floating-new-tab"><h1>New tab</h1><p>Enter a website above to browse with {profile?.name}.</p><button className="button secondary" onClick={focusAddress}>Enter an address</button></div>}</div>
   </main>;
 }

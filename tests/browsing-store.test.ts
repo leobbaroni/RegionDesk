@@ -8,6 +8,29 @@ import { BrowsingStore } from '../electron/browsing-store';
 
 function fixture() { const root = mkdtempSync(path.join(tmpdir(), 'regiondesk-browsing-')); const store = new BrowsingStore(root); return { root, store, cleanup: () => { store.flush(); rmSync(root, { recursive: true }); } }; }
 
+test('bookmarks and closed tabs persist separately for each profile', () => {
+  const { root, store, cleanup } = fixture();
+  try {
+    const a = randomUUID(), b = randomUUID();
+    store.toggleBookmark(a, 'https://example.com/saved', 'Saved page');
+    const tab = store.newTab(a, 'https://example.com/closed');
+    store.close(a, tab); store.flush();
+    const restored = new BrowsingStore(root);
+    assert.equal(restored.get(a).bookmarks.length, 1);
+    assert.equal(restored.get(b).bookmarks.length, 0);
+    restored.reopen(a);
+    assert.equal(restored.get(a).tabs.at(-1)?.url, 'https://example.com/closed');
+    assert.equal(restored.get(a).closedTabs.length, 0);
+    assert.equal(restored.get(b).closedTabs.length, 0);
+    assert.throws(() => restored.toggleBookmark(a, 'file:///secret', 'Unsafe'));
+    restored.clearHistory(a);
+    assert.equal(restored.get(a).bookmarks.length, 1);
+    restored.toggleBookmark(a, 'https://example.com/saved', 'Saved page');
+    assert.equal(restored.get(a).bookmarks.length, 0);
+    restored.flush();
+  } finally { cleanup(); }
+});
+
 test('tabs, order, active tab and history survive restart without crossing profile boundaries', () => {
   const { root, store, cleanup } = fixture();
   try {

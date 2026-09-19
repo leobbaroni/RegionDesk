@@ -1,6 +1,6 @@
 {
   "name": "regiondesk",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "description": "An isolated regional browsing workspace for Windows",
@@ -13,7 +13,6 @@
     "start": "electron .",
     "test": "tsx --test tests/*.test.ts",
     "test:desktop": "node scripts/desktop-test.mjs",
-    "test:android:live": "node scripts/android-smoke.mjs --live",
     "package": "npm run build && electron-builder --win zip --publish never"
   },
   "build": {
@@ -28,6 +27,20 @@
       "package.json"
     ],
     "asar": true,
+    "extraFiles": [
+      {
+        "from": "Start Here.txt",
+        "to": "Start Here.txt"
+      },
+      {
+        "from": "docs/THIRD_PARTY.md",
+        "to": "Third-party notices.txt"
+      },
+      {
+        "from": "docs/GHOSTERY-LICENSE.txt",
+        "to": "GHOSTERY-LICENSE.txt"
+      }
+    ],
     "win": {
       "target": "zip",
       "artifactName": "RegionDesk-${version}-Windows.zip",
@@ -36,6 +49,7 @@
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.3.0",
+    "@ghostery/adblocker": "2.18.2",
     "lucide-react": "^1.46.0",
     "proxy-chain": "^3.0.1",
     "react": "^19.3.0",

@@ -1,10 +1,15 @@
 import { _electron as electron } from '@playwright/test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
+import { existsSync } from 'node:fs';
 
 const ignoredDataPath = path.resolve('.test-data', 'packaged-override-must-be-ignored');
+const executablePath = path.resolve(process.argv[2] || 'release/win-unpacked/RegionDesk.exe');
+for (const file of ['Start Here.txt']) {
+  assert.ok(existsSync(path.join(path.dirname(executablePath), file)), `Missing beginner setup file: ${file}`);
+}
 const app = await electron.launch({
-  executablePath: path.resolve(process.argv[2] || 'release/win-unpacked/RegionDesk.exe'),
+  executablePath,
   args: [],
   env: { ...process.env, REGIONDESK_TEST: '1', REGIONDESK_TEST_DATA: ignoredDataPath },
   timeout: 30000,

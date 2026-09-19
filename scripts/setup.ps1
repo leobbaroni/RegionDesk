@@ -91,7 +91,7 @@ try {
     }
     if ($Mode -eq 'Launch') {
         Remove-Item Env:ELECTRON_RUN_AS_NODE, Env:REGIONDESK_DEV_URL, Env:REGIONDESK_TEST, Env:REGIONDESK_TEST_DATA -ErrorAction SilentlyContinue
-        Start-Process -FilePath $electronExe -ArgumentList '.' -WorkingDirectory $projectRoot
+        Start-Process -FilePath $electronExe -ArgumentList '.' -WorkingDirectory $projectRoot -WindowStyle Hidden
         Write-Host 'RegionDesk started.'
     } else {
         Write-Host ''

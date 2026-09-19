@@ -1,5 +1,4 @@
-import type { AndroidAction, AndroidPairing, AndroidState } from './android';
-export type Screen = 'browser' | 'profiles' | 'connections' | 'diagnostics' | 'history' | 'android';
+export type Screen = 'browser' | 'profiles' | 'connections' | 'diagnostics' | 'history';
 export type ProxyProtocol = 'http' | 'https' | 'socks5';
 export interface ProxyConfig {
   protocol: ProxyProtocol; host: string; port: number; username: string;
@@ -10,6 +9,7 @@ export interface Profile {
   timezone: string; latitude: number; longitude: number;
   locationPermission: 'blocked' | 'configured'; proxy: ProxyConfig;
   permissions?: BrowserPermissions;
+  blockTrackers?: boolean;
   createdAt: string; updatedAt: string;
 }
 export interface BrowserPermissions { camera: boolean; microphone: boolean; notifications: boolean; clipboard: boolean; fullscreen: boolean }
@@ -17,7 +17,8 @@ export const defaultPermissions: BrowserPermissions = { camera: false, microphon
 export type BrowserAction = 'back' | 'forward' | 'reload' | 'stop' | 'zoom-in' | 'zoom-out' | 'zoom-reset' | 'detach' | 'dock' | 'fullscreen';
 export interface BrowserTab { id: string; url: string; title: string }
 export interface HistoryEntry { url: string; title: string; visitedAt: string; visits: number }
-export interface BrowsingData { tabs: BrowserTab[]; activeTabId: string; history: HistoryEntry[] }
+export interface Bookmark { url: string; title: string }
+export interface BrowsingData { tabs: BrowserTab[]; activeTabId: string; history: HistoryEntry[]; bookmarks: Bookmark[]; closedTabs: BrowserTab[] }
 export interface BrowsingState extends Omit<BrowsingData, 'tabs'> { tabs: (BrowserTab & { loaded: boolean; loading: boolean })[] }
 export type ProfileInput = Omit<Profile, 'createdAt' | 'updatedAt'> & { password?: string; clearPassword?: boolean };
 export interface NetworkEvidence {
@@ -37,6 +38,8 @@ export interface RuntimeState {
   url: string; title: string; loading: boolean; canGoBack: boolean; canGoForward: boolean;
   cookieCount: number | null;
   zoom?: number; detached?: boolean; fullscreen?: boolean; retryAt?: number;
+  blockedTrackers?: number;
+  find?: { active: number; matches: number };
 }
 export interface Activity { id: string; at: string; kind: 'info' | 'success' | 'warning'; message: string; profileId: string }
 export interface AppState {
@@ -46,11 +49,6 @@ export interface AppState {
 }
 export interface Bounds { x: number; y: number; width: number; height: number }
 export interface RegionDeskAPI {
-  androidGet(): Promise<AndroidState>;
-  androidSave(pairing: AndroidPairing): Promise<AndroidState>;
-  androidInspect(): Promise<AndroidState>;
-  androidAction(action: AndroidAction): Promise<AndroidState>;
-  androidTransfer(): Promise<string | null>;
   getState(): Promise<AppState>;
   saveProfile(profile: ProfileInput): Promise<AppState>;
   createProfile(): Promise<AppState>;
@@ -63,12 +61,15 @@ export interface RegionDeskAPI {
   newTab(url?: string): Promise<AppState>;
   selectTab(id: string): Promise<AppState>;
   closeTab(id: string): Promise<AppState>;
+  reopenTab(): Promise<AppState>;
+  toggleBookmark(url: string, title: string): Promise<AppState>;
+  findInPage(text: string, forward?: boolean): Promise<void>;
   moveTab(id: string, direction: 'left' | 'right'): Promise<AppState>;
   reorderTab(id: string, targetId: string): Promise<AppState>;
   openWorkspace(screen: 'history' | 'permissions'): Promise<void>;
   clearHistory(): Promise<AppState>;
   removeHistory(url: string): Promise<AppState>;
-  onBrowserCommand(callback: (command: 'address' | 'history' | 'permissions') => void): () => void;
+  onBrowserCommand(callback: (command: 'address' | 'history' | 'permissions' | 'find') => void): () => void;
   setBrowserBounds(bounds: Bounds | null): Promise<void>;
   inspectBrowser(): Promise<AppState>;
   clearSession(): Promise<AppState>;

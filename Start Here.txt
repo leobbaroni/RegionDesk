@@ -1,0 +1,39 @@
+REGIONDESK - START HERE
+
+1. Extract the complete ZIP to a folder you want to keep.
+2. If it contains RegionDesk.exe, double-click that file.
+   Otherwise double-click Setup.bat, wait for "Setup complete", then open
+   Start RegionDesk.bat. You do not need to install Git or Node.js yourself.
+3. In Profiles, give your account workspace a name and choose a region preset.
+   Click Save profile. Advanced settings can usually stay closed.
+4. In Connections, enter your proxy host, port, protocol and credentials.
+   Click Save and connect. If the check fails, follow the message shown.
+5. Open Browser. Enter an HTTPS address or choose TikTok.
+
+EVERYDAY USE
+- Select the same profile to keep its cookies and logins.
+- Verify connection after reopening the app or switching profiles.
+- Use + or Ctrl+T for a new tab, Ctrl+W to close, Ctrl+Shift+T to reopen.
+- Use the star to bookmark a page. Bookmarks stay in the selected profile.
+- Use Find in page or Ctrl+F to search the current page.
+- Pop out moves the browser into a separate window with the same tabs and session.
+  Closing that window returns it to the workspace. F11 toggles full screen.
+- Proxy setup and browser use happen here. BlueStacks/Android is no longer needed.
+
+PRIVACY
+Profiles have separate cookies and storage. Existing online accounts can retain
+server-side history. A proxy does not guarantee US viewers or an undetectable
+browser. Optional common-tracker blocking is in Profiles; turn it off if a site
+breaks. It is a small starter rule set, not a full ad blocker.
+
+UPDATES
+Close the app. Extract the new download into a new folder and run its setup
+if it is a source download. Saved profiles remain in your Windows app data.
+Never delete %APPDATA%/RegionDesk if you want to keep your logins.
+
+KEEPING THE PROJECT SMALL (SOURCE DOWNLOADS)
+Clean Project.bat removes generated test data and superseded release copies.
+It keeps dependencies, the current release ZIP and the stable app folder.
+Only run it when tests and packaged test apps are closed.
+
+Help: https://github.com/leobbaroni/RegionDesk/blob/main/README.md

@@ -5,7 +5,7 @@ import { normalizeURL } from './core';
 import type { BrowserTab, BrowsingData } from '../shared/types';
 
 const blankTab = (): BrowserTab => ({ id: randomUUID(), url: '', title: 'New tab' });
-const empty = (): BrowsingData => { const tab = blankTab(); return { tabs: [tab], activeTabId: tab.id, history: [] }; };
+const empty = (): BrowsingData => { const tab = blankTab(); return { tabs: [tab], activeTabId: tab.id, history: [], bookmarks: [], closedTabs: [] }; };
 const label = (value: unknown) => typeof value === 'string' ? value.replace(/[\u0000-\u001f\u007f]/g, '').slice(0, 200) : '';
 
 export class BrowsingStore {
@@ -25,6 +25,12 @@ export class BrowsingStore {
       });
       const selected = tabs.find(tab => tab.oldId === raw.activeTabId)?.id;
       const state = empty();
+      state.bookmarks = (Array.isArray(raw.bookmarks) ? raw.bookmarks : []).slice(0, 100).flatMap(entry => {
+        try { const url = normalizeURL(entry.url, testMode); return [{ url, title: label(entry.title) || url }]; } catch { return []; }
+      });
+      state.closedTabs = (Array.isArray(raw.closedTabs) ? raw.closedTabs : []).slice(0, 20).flatMap(tab => {
+        try { const url = normalizeURL(tab.url, testMode); return [{ id: randomUUID(), url, title: label(tab.title) || url }]; } catch { return []; }
+      });
       if (tabs.length) { state.tabs = tabs.map(({ oldId: _, ...tab }) => tab); state.activeTabId = selected || tabs[0].id; }
       state.history = (Array.isArray(raw.history) ? raw.history : []).slice(0, 500).flatMap(entry => {
         try { const url = normalizeURL(entry.url, testMode); if (!Number.isFinite(Date.parse(entry.visitedAt))) return []; return [{ url, title: label(entry.title) || url, visitedAt: entry.visitedAt, visits: Math.max(1, Math.min(1_000_000, Number(entry.visits) || 1)) }]; } catch { return []; }
@@ -47,9 +53,31 @@ export class BrowsingStore {
   close(id: string, tabId: string) {
     this.update(id, data => {
       const index = data.tabs.findIndex(tab => tab.id === tabId); if (index < 0) throw new Error('Tab not found in this profile.');
-      data.tabs.splice(index, 1); if (!data.tabs.length) data.tabs.push(blankTab());
+      const [closed] = data.tabs.splice(index, 1);
+      if (closed.url) data.closedTabs = [closed, ...data.closedTabs].slice(0, 20);
+      if (!data.tabs.length) data.tabs.push(blankTab());
       if (data.activeTabId === tabId) data.activeTabId = data.tabs[Math.min(index, data.tabs.length - 1)].id;
     });
+  }
+  reopen(id: string) {
+    this.update(id, data => {
+      if (!data.closedTabs.length) return;
+      if (data.tabs.length >= 32) throw new Error('Close a tab before reopening another.');
+      const tab = { ...data.closedTabs.shift()!, id: randomUUID() };
+      if (data.tabs.length === 1 && !data.tabs[0].url) data.tabs = [];
+      data.tabs.push(tab); data.activeTabId = tab.id;
+    });
+  }
+  toggleBookmark(id: string, input: string, title: string) {
+    const url = normalizeURL(input, this.testMode);
+    this.update(id, data => {
+      if (data.bookmarks.some(entry => entry.url === url)) data.bookmarks = data.bookmarks.filter(entry => entry.url !== url);
+      else {
+        if (data.bookmarks.length >= 100) throw new Error('This profile has 100 bookmarks. Remove one before adding another.');
+        data.bookmarks.push({ url, title: label(title) || url });
+      }
+    });
+    this.flush();
   }
   move(id: string, tabId: string, direction: 'left' | 'right') {
     if (!['left', 'right'].includes(direction)) throw new Error('Invalid tab direction.');
@@ -73,7 +101,7 @@ export class BrowsingStore {
       } else if (existing) existing.title = tab.title;
     });
   }
-  clearHistory(id: string) { this.update(id, data => { data.history = []; }); this.flush(); }
+  clearHistory(id: string) { this.update(id, data => { data.history = []; data.closedTabs = []; }); this.flush(); }
   removeHistory(id: string, url: string) { this.update(id, data => { data.history = data.history.filter(entry => entry.url !== url); }); }
   delete(id: string) { delete this.data[id]; this.schedule(); }
   private schedule() { if (!this.pending) { this.pending = setTimeout(() => this.flush(), 250); this.pending.unref(); } }
