@@ -4,7 +4,7 @@ import path from 'node:path';
 
 const ignoredDataPath = path.resolve('.test-data', 'packaged-override-must-be-ignored');
 const app = await electron.launch({
-  executablePath: path.resolve('release/win-unpacked/RegionDesk.exe'),
+  executablePath: path.resolve(process.argv[2] || 'release/win-unpacked/RegionDesk.exe'),
   args: [],
   env: { ...process.env, REGIONDESK_TEST: '1', REGIONDESK_TEST_DATA: ignoredDataPath },
   timeout: 30000,

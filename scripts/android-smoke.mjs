@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 if (!process.argv.includes('--live')) throw new Error('Run with --live only when the paired BlueStacks instance is available.');
 const root = process.cwd();
 const dataDir = path.join(root, '.test-data', `android-smoke-${randomUUID()}`);
@@ -13,7 +14,9 @@ async function launch() {
   const env = { ...process.env, REGIONDESK_TEST: '1', REGIONDESK_TEST_DATA: dataDir };
   delete env.ELECTRON_RUN_AS_NODE;
   app = await electron.launch({ args: ['.'], cwd: root, env });
-  return app.firstWindow();
+  const window = await app.firstWindow();
+  await window.waitForSelector('h1');
+  return window;
 }
 try {
   let page = await launch();
@@ -32,8 +35,19 @@ try {
   await assert.rejects(api('androidAction', 'tiktok'), /timezone/);
   await api('saveProfile', { ...original, timezone: observed.evidence.timezone, locale: observed.evidence.locale, city: 'Los Angeles' });
   await api('androidAction', 'ip-check');
+  const video = path.join(dataDir, 'transfer-fixture.mp4');
+  execFileSync(process.env.FFMPEG_BIN || 'ffmpeg', ['-y', '-f', 'lavfi', '-i', 'color=c=black:s=160x90:d=1', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', video], { stdio: 'ignore', windowsHide: true });
+  await app.evaluate(({ dialog }, file) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] }); }, video);
+  const destination = await api('androidTransfer');
+  assert.match(destination, /^\/sdcard\/Movies\/RegionDesk\/[a-f0-9-]+\.mp4$/);
+  const adb = path.join(observed.pairing.installDirectory, 'HD-Adb.exe');
+  const serial = `127.0.0.1:${observed.pairing.port}`;
+  const pulled = path.join(dataDir, 'roundtrip.mp4');
+  execFileSync(adb, ['-s', serial, 'pull', destination, pulled], { stdio: 'ignore', windowsHide: true });
+  assert.deepEqual(await fs.readFile(pulled), await fs.readFile(video));
+  execFileSync(adb, ['-s', serial, 'shell', 'rm', destination], { stdio: 'ignore', windowsHide: true });
   await assert.rejects(api('androidAction', 'arbitrary-shell-command'), /Unknown Android action/);
-  const other = await api('createProfile');
+  await api('createProfile');
   await assert.rejects(api('androidSave', observed.pairing), /already paired/);
   await api('selectProfile', original.id);
   await page.getByRole('button', { name: 'Android', exact: true }).click();
@@ -44,5 +58,11 @@ try {
   page = await launch();
   assert.deepEqual((await api('androidGet')).pairing, observed.pairing);
   assert.equal((await api('androidGet')).evidence, undefined, 'Old evidence must not survive app restart');
-  console.log(JSON.stringify({ passed: ['pair via UI', 'live inspection', 'regional launch guard', 'IP check launch', 'action allowlist', 'duplicate pairing guard', 'restart persistence'], screenshot: path.join(dataDir, 'android-panel.png'), device: observed.evidence }, null, 2));
-} finally { if (app) await app.close(); }
+  await api('disconnect');
+  console.log(JSON.stringify({ passed: ['pair via UI', 'live inspection', 'regional launch guard', 'IP check launch', 'video byte-for-byte roundtrip', 'action allowlist', 'duplicate pairing guard', 'restart persistence'], screenshot: path.join(dataDir, 'android-panel.png'), device: observed.evidence }, null, 2));
+} finally {
+  if (app) {
+    for (const window of app.windows()) await window.close();
+    await app.close();
+  }
+}

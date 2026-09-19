@@ -6,7 +6,7 @@
 
 A Windows desktop workspace for isolated browser sessions, verified proxy routing and regional preferences.
 
-![Version](https://img.shields.io/badge/version-0.1.6-c2b5ff?style=flat-square)
+![Version](https://img.shields.io/badge/version-0.2.0-c2b5ff?style=flat-square)
 ![Platform](https://img.shields.io/badge/platform-Windows_x64-0078D4?style=flat-square)
 ![Stack](https://img.shields.io/badge/Electron-React_%2B_TypeScript-47848F?style=flat-square)
 
@@ -30,6 +30,7 @@ RegionDesk embeds Chromium inside a local desktop app. Each profile keeps its ow
 | **Permission controls** | Profile settings for camera, microphone, notifications, clipboard and website fullscreen. |
 | **Visible evidence** | Observed browser/network readings, an activity log and credential-free diagnostic exports. |
 | **Local credential storage** | Proxy passwords encrypted with Electron safeStorage on Windows. |
+| **Local Android (experimental)** | Pair BlueStacks, inspect its separate VPN and regional settings, open Chrome and copy videos into Android storage. |
 
 No app subscription or bundled proxy. Website logins, uploads and publishing remain user-controlled.
 
@@ -72,7 +73,7 @@ No traffic is sent to account websites until verification succeeds. Provider com
 
 ```powershell
 npm run package
-Expand-Archive release/RegionDesk-0.1.6-Windows.zip release/RegionDesk-Windows
+Expand-Archive release/RegionDesk-0.2.0-Windows.zip release/RegionDesk-Windows
 .\release\RegionDesk-Windows\RegionDesk.exe
 ```
 
@@ -127,6 +128,7 @@ Embedded-browser compatibility can differ from Chrome. Downloads and external ap
 | `npm run build` | Type-check and build the renderer and Electron processes |
 | `npm test` | Run unit tests |
 | `npm run test:desktop` | Exercise the real app with an isolated HTTPS/proxy fixture |
+| `npm run test:android:live` | Exercise an already configured local BlueStacks instance; requires FFmpeg |
 | `npm run package` | Build the Windows portable ZIP |
 | `node scripts/package-smoke.mjs` | Check the unpacked packaged app |
 | `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/portable-smoke.ps1` | Verify normal launch from the extracted ZIP |
@@ -155,6 +157,7 @@ Tab URLs, titles, order, selection and the latest 500 unique history URLs are sa
 ## Documentation
 
 - [Browser controls, 429 recovery and Windows Firewall](docs/BROWSER_CONTROLS.md)
+- [Local Android setup and verified limitations](docs/LOCAL_ANDROID.md)
 - [Test coverage and known limitations](TESTING.md)
 - [Proxy provider comparison](docs/PROXY_OPTIONS.md)
 - [Google compatibility investigation](docs/GOOGLE_VERIFICATION.md)

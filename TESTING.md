@@ -73,3 +73,11 @@ Both v0.1.6 packaged-launch checks passed, including native sandboxed launch fro
 ## Folder-local Windows setup: 19 September 2026
 
 `Setup.bat --no-pause` passed when launched from outside the project directory, detecting existing Node and skipping already installed dependencies. An isolated copy in a path containing spaces, with Node removed from PATH and no node_modules, downloaded and checksum-verified portable Node 22.22.0 and installed the locked packages. The completed setup also installed the Electron runtime and built successfully using that portable Node. Profiles remain in the existing application data location. Setup does not alter system PATH or require an administrator installer. The normal app launch UI was not re-tested for this script-only change.
+
+## v0.2.0 local Android: 19 September 2026
+
+Build, 12 unit tests and the 27 existing desktop groups passed. The live BlueStacks test passed eight checks, including saved pairing, fresh device evidence, timezone mismatch rejection, a generated video's byte-for-byte transfer roundtrip, duplicate-instance rejection and restart persistence without stale evidence. The video fixture was removed from Android after verification. The Android panel was visually inspected.
+
+Both the unpacked package and executable extracted from the v0.2.0 ZIP passed the Playwright packaged-launch check (locked initial state, encrypted credential storage, test-directory override ignored). The separate native launch script was not rerun. The Android harness waits for renderer startup and explicitly disconnects before teardown; its final run exited successfully.
+
+Manual Android Chrome checks confirmed the supplied SOCKS5 exit IP, and Android's VPN lockdown blocked both hostname and IP-literal HTTPS requests after the tunnel stopped. Restarting SocksTun restored access. TikTok web showed English captions in a later sample, but no Shop tab, and one video failed to play. Native TikTok, account eligibility, publishing, audience distribution and comprehensive DNS leak testing remain unverified. See [local Android notes](docs/LOCAL_ANDROID.md).
