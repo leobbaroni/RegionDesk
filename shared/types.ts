@@ -1,4 +1,5 @@
-export type Screen = 'browser' | 'profiles' | 'connections' | 'diagnostics' | 'history';
+import type { AndroidAction, AndroidPairing, AndroidState } from './android';
+export type Screen = 'browser' | 'profiles' | 'connections' | 'diagnostics' | 'history' | 'android';
 export type ProxyProtocol = 'http' | 'https' | 'socks5';
 export interface ProxyConfig {
   protocol: ProxyProtocol; host: string; port: number; username: string;
@@ -45,6 +46,11 @@ export interface AppState {
 }
 export interface Bounds { x: number; y: number; width: number; height: number }
 export interface RegionDeskAPI {
+  androidGet(): Promise<AndroidState>;
+  androidSave(pairing: AndroidPairing): Promise<AndroidState>;
+  androidInspect(): Promise<AndroidState>;
+  androidAction(action: AndroidAction): Promise<AndroidState>;
+  androidTransfer(): Promise<string | null>;
   getState(): Promise<AppState>;
   saveProfile(profile: ProfileInput): Promise<AppState>;
   createProfile(): Promise<AppState>;

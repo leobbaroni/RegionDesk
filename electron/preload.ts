@@ -1,6 +1,11 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { AppState, Bounds, ProfileInput, RegionDeskAPI } from '../shared/types';
 const api: RegionDeskAPI = {
+  androidGet: () => ipcRenderer.invoke('android:get'),
+  androidSave: pairing => ipcRenderer.invoke('android:save', pairing),
+  androidInspect: () => ipcRenderer.invoke('android:inspect'),
+  androidAction: action => ipcRenderer.invoke('android:action', action),
+  androidTransfer: () => ipcRenderer.invoke('android:transfer'),
   getState: () => ipcRenderer.invoke('state:get'),
   saveProfile: (profile: ProfileInput) => ipcRenderer.invoke('profile:save', profile),
   createProfile: () => ipcRenderer.invoke('profile:create'),

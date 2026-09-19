@@ -336,3 +336,9 @@ td { padding: 17px; border-top: 1px solid #2a2c34; font-size: 11px; color: #bfc1
 .floating-error span { flex: 1; }
 .floating-error button { background: transparent; border: 0; }
 .floating-loading { padding: 30px; }
+
+.android-panel { display: grid; gap: 20px; }
+.android-fields { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 16px; margin: 20px 0; }
+.android-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 20px 0; }
+.android-panel p { color: var(--text-secondary, #aaa); line-height: 1.6; max-width: 90ch; }
+.android-error { color: #ffb4a9; }
