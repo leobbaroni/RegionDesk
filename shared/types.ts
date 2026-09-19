@@ -80,6 +80,7 @@ export interface RegionDeskAPI {
 }
 export const regions = [
   { country: 'US', name: 'United States', city: 'New York', locale: 'en-US', timezone: 'America/New_York', latitude: 40.7128, longitude: -74.006 },
+  { country: 'US', name: 'United States · Southeast', city: 'Miami', locale: 'en-US', timezone: 'America/New_York', latitude: 25.7617, longitude: -80.1918 },
   { country: 'US', name: 'United States · West', city: 'Los Angeles', locale: 'en-US', timezone: 'America/Los_Angeles', latitude: 34.0522, longitude: -118.2437 },
   { country: 'GB', name: 'United Kingdom', city: 'London', locale: 'en-GB', timezone: 'Europe/London', latitude: 51.5074, longitude: -0.1278 },
   { country: 'CA', name: 'Canada', city: 'Toronto', locale: 'en-CA', timezone: 'America/Toronto', latitude: 43.6532, longitude: -79.3832 },
