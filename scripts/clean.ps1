@@ -3,12 +3,12 @@ $ErrorActionPreference = 'Stop'
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..')).TrimEnd('\')
 $manifest = Get-Content -LiteralPath (Join-Path $projectRoot 'package.json') -Raw | ConvertFrom-Json
 if ($manifest.name -ne 'regiondesk' -or !(Test-Path -LiteralPath (Join-Path $projectRoot '.gitignore'))) { throw 'Run this script only from a complete RegionDesk project.' }
-$keepZip = "RegionDesk-$($manifest.version)-Windows.zip"
+$keepDownload = "RegionDesk-$($manifest.version)-Setup.exe"
 $targets = @((Join-Path $projectRoot '.test-data'))
 $releaseRoot = Join-Path $projectRoot 'release'
 if (Test-Path -LiteralPath $releaseRoot) {
     $targets += @(Get-ChildItem -LiteralPath $releaseRoot -Force | Where-Object {
-        ($_.Name -match '^RegionDesk-\d+\.\d+\.\d+-Windows(\.zip)?$' -and $_.Name -ne $keepZip) -or $_.Name -in @('win-unpacked', 'builder-debug.yml')
+        ($_.Name -match '^RegionDesk-\d+\.\d+\.\d+-(Windows(\.zip|\.exe)?|Setup\.exe(\.blockmap)?)$' -and $_.Name -ne $keepDownload) -or $_.Name -in @('win-unpacked', 'builder-debug.yml', 'latest.yml')
     } | ForEach-Object FullName)
 }
 $removed = 0L
@@ -24,4 +24,4 @@ foreach ($target in $targets) {
     if (!$Preview) { Remove-Item -LiteralPath $resolved -Recurse -Force }
     $removed += $bytes
 }
-Write-Host ("{0:N1} MB {1}. Kept the current ZIP, stable app folder, source, dependencies and saved user profiles." -f ($removed / 1MB), $(if ($Preview) { 'eligible for cleanup' } else { 'removed' }))
+Write-Host ("{0:N1} MB {1}. Kept the current download, stable app folder, source, dependencies and saved user profiles." -f ($removed / 1MB), $(if ($Preview) { 'eligible for cleanup' } else { 'removed' }))

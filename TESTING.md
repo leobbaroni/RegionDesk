@@ -1,6 +1,8 @@
-# Verification — v0.3.1
+# Verification — v0.3.2
 
 RegionDesk is browser-only. Android integration and setup helpers were removed at the owner's request. Tests use isolated data, not the user's saved accounts.
+
+Version 0.3.2 changes distribution and source-launch freshness. The browser checks below passed for the unchanged browser code in v0.3.1. The installer and setup fingerprint checks were run for v0.3.2.
 
 ## Automated coverage
 
@@ -13,9 +15,11 @@ Commands: `npm test`, `npm run test:desktop`, `npm run build`. Set `REGIONDESK_C
 
 ## Packaging and setup
 
-`node scripts/package-smoke.mjs` checks the packaged app, Windows password encryption, locked startup and included beginner guide. Pass an executable path to test the extracted ZIP. `scripts/portable-smoke.ps1` is an older native launch harness; it is not part of this version's executed checks.
+`node scripts/package-smoke.mjs` checks the packaged app, Windows password encryption, locked startup and included beginner guide. Pass an installed executable path to test the installation. `scripts/portable-smoke.ps1` is an older native launch harness; it is not part of this version's executed checks.
 
-The v0.3.1 ZIP extracted to the stable portable folder passed the packaged smoke check and the updated app was reopened. Cleanup removed 613.6 MB of generated tests, the unpacked build and the superseded ZIP. One current ZIP and the stable app folder remain; user profiles were retained.
+The v0.3.2 NSIS installer was installed for the current Windows user with `/S`. Verified the installed executable, desktop shortcut, Start Menu shortcut and Windows uninstall registration. Saved `profiles.json` was byte-identical before and after installation. The installed app passed the packaged smoke check and was reopened. Interactive automatic launch is configured through NSIS `runAfterFinish`; the silent installation test deliberately launches the app separately. Uninstall was not executed against the user's installation.
+
+`powershell -NoProfile -ExecutionPolicy Bypass -File scripts/setup-test.ps1` passed: the source fingerprint remains stable for unchanged code, changes for edited/new files even with preserved timestamps, and handles folder paths containing spaces. The source launcher rebuilds when this fingerprint changes or its build stamp is absent. This release did not repeat a clean-machine dependency download.
 
 `Setup.bat` installs missing dependencies and builds in place; `Start RegionDesk.bat` launches it. Earlier verification exercised portable Node download and a folder path with spaces. `scripts/clean.ps1 -Preview` enumerates only generated data and superseded release copies, validates every resolved path stays within the project and refuses directory links. It never targets AppData profiles.
 

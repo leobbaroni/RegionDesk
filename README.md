@@ -6,14 +6,19 @@ A Windows browser workspace with separate saved profiles, verified proxy routing
 
 ## Start without coding tools
 
-1. Choose **Code → Download ZIP** on GitHub, then right-click the ZIP → **Extract All**. Sign in if repository access is required.
-2. Open the extracted folder and double-click **Setup.bat**. Wait for **Setup complete**; missing dependencies are installed automatically.
-3. Double-click **Start RegionDesk.bat**.
-4. In **Profiles**, choose a name and region preset, then **Save profile**. Leave advanced settings closed unless you need them.
-5. In **Connections**, enter your proxy details and click **Save and connect**.
-6. Open **Browser**, enter an HTTPS address, and sign in yourself.
+1. **[Download the Windows installer](https://github.com/leobbaroni/RegionDesk/releases/latest/download/RegionDesk-Setup.exe)** and double-click it. It installs for your Windows account and opens RegionDesk automatically.
+2. Next time, use the **RegionDesk desktop icon** or search for RegionDesk in the Start Menu.
+3. In **Profiles**, choose a name and region preset, then **Save profile**.
+4. In **Connections**, enter your proxy details and click **Save and connect**.
+5. Open **Browser**, enter an HTTPS address, and sign in yourself.
 
-If you have a ready-built Windows ZIP, extract it and run **RegionDesk.exe** instead; no source setup is needed. **Start Here.txt** opens in Notepad. Keep all extracted files together. The app is unsigned.
+No ZIP extraction, Node.js, Git or build commands are needed. Windows x64 is supported. The installer is unsigned, so Windows may show an unfamiliar-publisher warning. Download only from this repository's Releases page.
+
+To update, close RegionDesk and run the latest installer. Your saved profiles and logins are kept. Uninstall through Windows **Settings → Apps → RegionDesk**; saved profile data is retained.
+
+### Running the source instead
+
+If you downloaded **Code → Download ZIP**, extract the complete folder and double-click **Start RegionDesk.bat**. It installs missing dependencies, builds new or changed code, and opens the app. **Setup.bat** is optional if you want to prepare the app without opening it.
 
 Setup supports Windows x64. It reuses compatible Node.js or downloads a checksum-verified portable runtime inside the project. It does not change system PATH, Windows proxy settings or timezone. First setup needs internet access. Run `Setup.bat --no-pause` for unattended setup.
 
@@ -54,7 +59,7 @@ To update, close the app, extract the new download into a new folder and run its
 
 ## Keep it light
 
-**Clean Project.bat** removes generated test data and old release copies. It keeps source, installed dependencies, the current release ZIP and `release/RegionDesk-Windows` (the stable app folder). Close tests and packaged test apps first. Preview with `powershell -NoProfile -File scripts/clean.ps1 -Preview`.
+**Clean Project.bat** removes generated test data and old release copies. It keeps source, dependencies, the current installer and `release/RegionDesk-Windows` (the legacy portable app folder). It does not touch the installed app or saved profiles. Close tests and packaged test apps first. Preview with `powershell -NoProfile -File scripts/clean.ps1 -Preview`.
 
 Source, tests and documentation are small; Chromium accounts for most of the installed app size. No emulator or second browser engine is required. Build outputs, downloads and test data are ignored by Git.
 
@@ -71,7 +76,7 @@ npm run test:desktop
 npm run package
 ```
 
-The v0.3.1 package is `release/RegionDesk-0.3.1-Windows.zip`. Extract all files and run `RegionDesk.exe`. `node scripts/package-smoke.mjs` checks the unpacked package; an executable path argument checks an extracted ZIP. Tests use isolated local fixtures and require OpenSSL (Git for Windows' bundled copy is the default).
+`npm run package` creates `release/RegionDesk-0.3.2-Setup.exe`. The GitHub release uses the stable download name `RegionDesk-Setup.exe`. `node scripts/package-smoke.mjs` checks the unpacked app; pass an installed executable path to check the installation. Tests use isolated local fixtures and require OpenSSL (Git for Windows' bundled copy is the default).
 
 ## Troubleshooting
 

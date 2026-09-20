@@ -84,10 +84,14 @@ try {
     Set-Content -LiteralPath $stampPath -Value $lockHash -Encoding ASCII
 
     $built = (Test-Path -LiteralPath (Join-Path $projectRoot 'dist\index.html')) -and (Test-Path -LiteralPath (Join-Path $projectRoot 'dist-electron\main.cjs'))
-    if ($Mode -eq 'Setup' -or $needsInstall -or !$built) {
+    $sourceHash = & (Join-Path $PSScriptRoot 'source-hash.ps1') -ProjectRoot $projectRoot
+    $buildStamp = Join-Path $stateRoot 'build.sha256'
+    $sourceChanged = !(Test-Path -LiteralPath $buildStamp) -or (Get-Content -LiteralPath $buildStamp -Raw).Trim() -ne $sourceHash
+    if ($Mode -eq 'Setup' -or $needsInstall -or !$built -or $sourceChanged) {
         Write-Host 'Building RegionDesk...'
         & $npmCmd run build
         if ($LASTEXITCODE -ne 0) { throw 'The app build failed. Fix the reported error, then run Setup.bat again.' }
+        Set-Content -LiteralPath $buildStamp -Value $sourceHash -Encoding ASCII
     }
     if ($Mode -eq 'Launch') {
         Remove-Item Env:ELECTRON_RUN_AS_NODE, Env:REGIONDESK_DEV_URL, Env:REGIONDESK_TEST, Env:REGIONDESK_TEST_DATA -ErrorAction SilentlyContinue

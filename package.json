@@ -1,6 +1,6 @@
 {
   "name": "regiondesk",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "private": true,
   "type": "module",
   "description": "An isolated regional browsing workspace for Windows",
@@ -13,7 +13,7 @@
     "start": "electron .",
     "test": "tsx --test tests/*.test.ts",
     "test:desktop": "node scripts/desktop-test.mjs",
-    "package": "npm run build && electron-builder --win zip --publish never"
+    "package": "npm run build && electron-builder --win nsis --publish never"
   },
   "build": {
     "appId": "local.regiondesk.desktop",
@@ -42,9 +42,18 @@
       }
     ],
     "win": {
-      "target": "zip",
-      "artifactName": "RegionDesk-${version}-Windows.zip",
+      "target": "nsis",
+      "artifactName": "RegionDesk-${version}-Setup.exe",
       "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "RegionDesk",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false
     }
   },
   "dependencies": {

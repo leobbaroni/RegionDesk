@@ -1,9 +1,9 @@
 REGIONDESK - START HERE
 
-1. Extract the complete ZIP to a folder you want to keep.
-2. If it contains RegionDesk.exe, double-click that file.
-   Otherwise double-click Setup.bat, wait for "Setup complete", then open
-   Start RegionDesk.bat. You do not need to install Git or Node.js yourself.
+1. Download RegionDesk-Setup.exe from the project's GitHub Releases page.
+2. Double-click it. RegionDesk installs for your account and opens automatically.
+   Next time, use the RegionDesk desktop icon or Start Menu shortcut.
+   No ZIP extraction, Git or Node.js is needed.
 3. In Profiles, give your account workspace a name and choose a region preset.
    Click Save profile. Advanced settings can usually stay closed.
 4. In Connections, enter your proxy host, port, protocol and credentials.
@@ -29,13 +29,17 @@ browser. Optional common-tracker blocking is in Profiles; turn it off if a site
 breaks. It is a small starter rule set, not a full ad blocker.
 
 UPDATES
-Close the app. Extract the new download into a new folder and run its setup
-if it is a source download. Saved profiles remain in your Windows app data.
+Close the app and run the newest installer. Saved profiles and logins are kept.
+Uninstall through Windows Settings > Apps > RegionDesk. Saved profiles remain.
 Never delete %APPDATA%/RegionDesk if you want to keep your logins.
+
+SOURCE DOWNLOADS
+If you downloaded the source ZIP, extract all files and double-click
+Start RegionDesk.bat. It handles setup, builds changed code and opens the app.
 
 KEEPING THE PROJECT SMALL (SOURCE DOWNLOADS)
 Clean Project.bat removes generated test data and superseded release copies.
-It keeps dependencies, the current release ZIP and the stable app folder.
+It keeps dependencies, the current installer and the stable app folder.
 Only run it when tests and packaged test apps are closed.
 
 Help: https://github.com/leobbaroni/RegionDesk/blob/main/README.md
