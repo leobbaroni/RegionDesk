@@ -1,11 +1,11 @@
-# Verification — v0.3.0
+# Verification — v0.3.1
 
 RegionDesk is browser-only. Android integration and setup helpers were removed at the owner's request. Tests use isolated data, not the user's saved accounts.
 
 ## Automated coverage
 
 - 12 unit tests: profile validation, URL/private-network restrictions, credential-safe errors, tab/history/bookmark persistence and separation, closed-tab recovery, and third-party tracker matching without blocking first-party or lookalike domains.
-- 28 real Electron desktop groups: initial lock, save-and-connect, HTTP CONNECT authentication and 407 errors, verification/lease expiry, 429 recovery, country/timezone rejection, profile/cookie/storage isolation, native browser metadata, workers and cross-site frames, WebRTC fixture, permissions, zoom, pop-out/fullscreen, draggable tabs, address suggestions, history, restart persistence, bookmarks, find-in-page, reopening tabs and tracker blocking.
+- 32 real Electron desktop groups: initial lock, save-and-connect, HTTP CONNECT authentication and 407 errors, verification/lease expiry, 429 recovery, country/timezone rejection, profile/cookie/storage isolation, native browser metadata, workers and cross-site frames, WebRTC fixture, permissions, zoom, pop-out/fullscreen, draggable tabs, address suggestions, history, restart persistence, bookmarks, find-in-page, reopening tabs and tracker blocking. New regressions cover destination tunnel failures, invalid addresses, failed popups, renderer crash/reload, short-lived frames, login redirects, server HTTP error pages, adjacent new-tab controls and bookmark clicks opening new tabs.
 - Browser traffic in the desktop suite uses an isolated HTTPS/proxy fixture. It reports zero direct fixture requests; the local WebRTC fixture receives no direct STUN packet. Neither result is comprehensive live-provider leak certification.
 - UI screenshots cover 1440px and minimum desktop layouts plus the compact floating window. Optional settings and provider comparisons are collapsed by default.
 
@@ -15,7 +15,7 @@ Commands: `npm test`, `npm run test:desktop`, `npm run build`. Set `REGIONDESK_C
 
 `node scripts/package-smoke.mjs` checks the packaged app, Windows password encryption, locked startup and included beginner guide. Pass an executable path to test the extracted ZIP. `scripts/portable-smoke.ps1` is an older native launch harness; it is not part of this version's executed checks.
 
-Both the unpacked v0.3.0 app and exact ZIP extracted to the stable portable folder passed. The updated app was launched. Cleanup removed more than 4 GB of old releases and generated test data; the final project is approximately 1.1 GB including dependencies, one installed app and one current ZIP. User profiles were retained.
+The v0.3.1 ZIP extracted to the stable portable folder passed the packaged smoke check and the updated app was reopened. Cleanup removed 613.6 MB of generated tests, the unpacked build and the superseded ZIP. One current ZIP and the stable app folder remain; user profiles were retained.
 
 `Setup.bat` installs missing dependencies and builds in place; `Start RegionDesk.bat` launches it. Earlier verification exercised portable Node download and a folder path with spaces. `scripts/clean.ps1 -Preview` enumerates only generated data and superseded release copies, validates every resolved path stays within the project and refuses directory links. It never targets AppData profiles.
 

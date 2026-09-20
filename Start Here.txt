@@ -15,6 +15,8 @@ EVERYDAY USE
 - Verify connection after reopening the app or switching profiles.
 - Use + or Ctrl+T for a new tab, Ctrl+W to close, Ctrl+Shift+T to reopen.
 - Use the star to bookmark a page. Bookmarks stay in the selected profile.
+- Click a bookmark or saved shortcut to open it in a new tab.
+- If one page fails, use Reload page or Go back. Other tabs stay connected.
 - Use Find in page or Ctrl+F to search the current page.
 - Pop out moves the browser into a separate window with the same tabs and session.
   Closing that window returns it to the workspace. F11 toggles full screen.

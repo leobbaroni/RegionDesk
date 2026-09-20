@@ -26,13 +26,15 @@ Setup supports Windows x64. It reuses compatible Node.js or downloads a checksum
 | Reopen closed tab | `Ctrl+Shift+T` or the undo arrow |
 | Reorder tabs | Drag, or Shift+Left/Right while a tab is focused |
 | Find in page | `Ctrl+F` or the magnifier |
-| Save a bookmark | Star beside the bookmark bar; middle-click a bookmark for a new tab |
+| Save a bookmark | Star beside the bookmark bar; click a bookmark to open a new tab |
 | Separate browser window | **Pop out**; **Dock browser** or close the window to return |
 | Full screen | `F11`; `Esc` to leave |
 | Zoom | Toolbar or `Ctrl` plus/minus; `Ctrl+0` resets |
 | History | **History** or `Ctrl+H` |
 
 Each profile keeps its own cookies, tabs, history, bookmarks and proxy. Switching profiles locks browsing until its connection is checked. Existing account history on a website is not reset. Pop-out moves the same browser session; it is not a second simultaneous account window. Downloads and arbitrary browser extensions are not currently supported.
+
+The **+** beside your tabs opens a new tab. Bookmarks, saved shortcuts and history entries open in a new tab. A failed page shows an error in that tab; use **Reload page**, **Go back**, or enter another address. Other tabs and the verified connection remain available. An actual connection-check failure still locks browsing.
 
 ## Optional tracker blocking
 
@@ -69,7 +71,7 @@ npm run test:desktop
 npm run package
 ```
 
-The v0.3.0 package is `release/RegionDesk-0.3.0-Windows.zip`. Extract all files and run `RegionDesk.exe`. `node scripts/package-smoke.mjs` checks the unpacked package; an executable path argument checks an extracted ZIP. Tests use isolated local fixtures and require OpenSSL (Git for Windows' bundled copy is the default).
+The v0.3.1 package is `release/RegionDesk-0.3.1-Windows.zip`. Extract all files and run `RegionDesk.exe`. `node scripts/package-smoke.mjs` checks the unpacked package; an executable path argument checks an extracted ZIP. Tests use isolated local fixtures and require OpenSSL (Git for Windows' bundled copy is the default).
 
 ## Troubleshooting
 

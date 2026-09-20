@@ -1,6 +1,6 @@
 {
   "name": "regiondesk",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "type": "module",
   "description": "An isolated regional browsing workspace for Windows",
