@@ -1,8 +1,10 @@
-# Verification — v0.3.2
+# Verification — v0.3.3
 
 RegionDesk is browser-only. Android integration and setup helpers were removed at the owner's request. Tests use isolated data, not the user's saved accounts.
 
 Version 0.3.2 changes distribution and source-launch freshness. The browser checks below passed for the unchanged browser code in v0.3.1. The installer and setup fingerprint checks were run for v0.3.2.
+
+Version 0.3.3 adds manual GitHub update controls. Fifteen unit tests passed, including update version/URL validation, corrupt/truncated download rejection, explicit installation, duplicate-action protection and a second checksum check immediately before installer launch. A real public GitHub release lookup and installer download passed both checksum checks; the live-download test deliberately did not execute the installer. Full update-to-a-future-version replacement remains to be exercised when a newer release exists.
 
 ## Automated coverage
 

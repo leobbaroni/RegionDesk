@@ -5,6 +5,7 @@ import { regions, defaultPermissions, type AppState, type Profile, type ProfileI
 import TabStrip from './TabStrip';
 import BrowserExtras from './BrowserExtras';
 import PageError from './PageError';
+import Updates from './Updates';
 
 const countryNames = new Intl.DisplayNames(['en'], { type: 'region' });
 const countryName = (code: string) => { try { return countryNames.of(code) || code; } catch { return code; } };
@@ -38,6 +39,7 @@ export default function App() {
   const [notice, setNotice] = useState<{ message: string; error?: boolean } | null>(null);
   const [profileMenu, setProfileMenu] = useState(false);
   const [help, setHelp] = useState(false);
+  const [updatesOpen, setUpdatesOpen] = useState(false);
   const [address, setAddress] = useState('');
   const [addressFocused, setAddressFocused] = useState(false);
   const [suggestionIndex, setSuggestionIndex] = useState(-1);
@@ -84,12 +86,12 @@ export default function App() {
   const open = async (url: string, newTab = false) => { setAddressFocused(false); if (await go('browser')) void run(() => newTab ? window.regiondesk!.newTab(url) : window.regiondesk!.navigate(url)); };
   useEffect(() => {
     if (!window.regiondesk) return;
-    if (screen !== 'browser' || !ready || !data.runtime.url || profileMenu || help || showSuggestions) { void window.regiondesk.setBrowserBounds(null); return; }
+    if (screen !== 'browser' || !ready || !data.runtime.url || profileMenu || help || updatesOpen || showSuggestions) { void window.regiondesk.setBrowserBounds(null); return; }
     const update = () => { const r = guest.current?.getBoundingClientRect(); if (r) void window.regiondesk!.setBrowserBounds({ x: r.x, y: r.y, width: r.width, height: r.height }); };
     const observer = new ResizeObserver(update); if (guest.current) observer.observe(guest.current);
     window.addEventListener('resize', update); update();
     return () => { observer.disconnect(); window.removeEventListener('resize', update); void window.regiondesk?.setBrowserBounds(null); };
-  }, [screen, ready, data.runtime.url, data.browsing?.activeTabId, profileMenu, help, showSuggestions]);
+  }, [screen, ready, data.runtime.url, data.browsing?.activeTabId, profileMenu, help, updatesOpen, showSuggestions]);
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'r') { e.preventDefault(); void run(() => window.regiondesk!.browserAction('reload')); }
@@ -144,7 +146,7 @@ export default function App() {
         {screen === 'history' && <BrowsingHistory data={data} busy={busy} ready={ready} onOpen={url => void open(url, true)} onNewTab={url => { void go('browser').then(changed => { if (changed) void run(() => window.regiondesk!.newTab(url)); }); }} onRemove={url => void run(() => window.regiondesk!.removeHistory(url))} onClear={() => void run(() => window.regiondesk!.clearHistory())} />}
         {screen === 'diagnostics' && <Diagnostics data={data} profile={active} busy={busy} onInspect={() => void run(() => window.regiondesk!.inspectBrowser(), 'Browser readings refreshed.')} />}
       </div>
-      <footer className="app-footer"><span><ShieldCheck size={12} />Local workspace · v{data.version}</span><span>{data.secureStorage ? 'Windows credential encryption available' : preview ? 'Preview mode' : 'Credential encryption unavailable'}<span className="footer-separator">·</span>{active.country} profile</span></footer>
+      <footer className="app-footer"><span><ShieldCheck size={12} />Local workspace · v{data.version}</span><Updates state={data.updates} onOpenChange={setUpdatesOpen} /><span>{data.secureStorage ? 'Windows credential encryption available' : preview ? 'Preview mode' : 'Credential encryption unavailable'}<span className="footer-separator">·</span>{active.country} profile</span></footer>
     </main>
     {notice && <div className={`toast ${notice.error ? 'error' : ''}`} role={notice.error ? 'alert' : 'status'}>{notice.error ? <TriangleAlert size={17} /> : <CheckCheck size={17} />}<span>{notice.message}</span><button aria-label="Dismiss notification" onClick={() => setNotice(null)}><X size={14} /></button></div>}
     {help && <div className="help-overlay" onClick={() => setHelp(false)}><section className="help-drawer" role="dialog" aria-modal="true" aria-label="About RegionDesk" onClick={e => e.stopPropagation()} onKeyDown={e => { if (e.key !== 'Tab') return; const controls = e.currentTarget.querySelectorAll<HTMLButtonElement>('button'); const first = controls[0], last = controls[controls.length - 1]; if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); } else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); } }}><button className="close-help" aria-label="Close help" onClick={() => setHelp(false)} autoFocus><X size={20} /></button><div className="brand-symbol"><Globe2 size={23} /></div><h2>Your browser. A separate workspace.</h2><p>RegionDesk keeps regional preferences, proxy routing and account storage together on your computer.</p><h3>What verification means</h3><p>A geolocation service reports the proxy’s public IP and country. We compare that country with your profile. It is not proof of a residential connection, a SIM, account eligibility or audience reach.</p><h3>What stays local</h3><p>Profiles and website sessions are saved in this Windows account. Proxy passwords use Windows encryption. Connection checks send requests to ipwho.is through your configured proxy.</p><h3>What websites can still see</h3><p>Your actual browser engine, operating system, screen, graphics capabilities and interactions remain observable. RegionDesk does not fabricate account history or claim an undetectable identity.</p><h3>Connection protection</h3><p>Managed browser traffic is restricted to the configured proxy. A check runs every 45 seconds while connected. Rate limits pause verification retries without extending the 90-second verification lease. Other failures or an expired lease lock the browser; there is no direct fallback. This is not an operating-system firewall.</p><Button onClick={() => setHelp(false)}>Back to workspace<ArrowRight size={15} /></Button></section></div>}

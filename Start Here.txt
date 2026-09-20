@@ -29,7 +29,12 @@ browser. Optional common-tracker blocking is in Profiles; turn it off if a site
 breaks. It is a small starter rule set, not a full ad blocker.
 
 UPDATES
-Close the app and run the newest installer. Saved profiles and logins are kept.
+Click Updates in the bottom bar, then Check for updates. If one is available,
+choose Download update, save your work, then Install and restart.
+Update checks/downloads use your normal internet connection to GitHub,
+separately from the browser proxy. No account cookies or proxy passwords are sent.
+Versions 0.3.2 and earlier need one manual installer update first.
+You can also close the app and run the newest installer. Profiles and logins stay.
 Uninstall through Windows Settings > Apps > RegionDesk. Saved profiles remain.
 Never delete %APPDATA%/RegionDesk if you want to keep your logins.
 

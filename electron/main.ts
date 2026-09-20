@@ -1,5 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, safeStorage, shell } from 'electron';
 import path from 'node:path';
+import { spawn } from 'node:child_process';
+import { AppUpdates } from './updates';
 import { writeFile } from 'node:fs/promises';
 import { ProfileStore } from './store';
 import { AccountBrowser } from './browser';
@@ -18,11 +20,12 @@ let win: BrowserWindow | null = null;
 let manager: AccountBrowser;
 let store: ProfileStore;
 let browsing: BrowsingStore;
+let updates: AppUpdates;
 let quitting = false;
 let queue = Promise.resolve<unknown>(undefined);
 const providers: Record<string, string> = { 'webshare-free': 'https://www.webshare.io/free-proxy', 'webshare-isp': 'https://www.webshare.io/static-residential-proxy', iproyal: 'https://iproyal.com/pricing/static-residential-proxies/' };
 
-function state(): AppState { return { profiles: store.profiles, activeId: store.activeId, runtime: manager.state, activity: manager.activity, browsing: manager.browsingState, secureStorage: safeStorage.isEncryptionAvailable(), version: app.getVersion() }; }
+function state(): AppState { return { profiles: store.profiles, activeId: store.activeId, runtime: manager.state, activity: manager.activity, browsing: manager.browsingState, secureStorage: safeStorage.isEncryptionAvailable(), version: app.getVersion(), updates: updates?.state }; }
 function emit() { if (win && !win.isDestroyed()) { const current = state(); win.webContents.send('state:update', current); manager.emitFloatingState(current); } }
 function handle(name: string, fn: (...args: any[]) => unknown, serial = true) {
   ipcMain.handle(name, (event, ...args) => {
@@ -41,9 +44,20 @@ async function createWindow() {
     webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false, webSecurity: true } });
   win.removeMenu();
   manager = new AccountBrowser(win, store, browsing, emit);
+  updates = new AppUpdates(app.getVersion(), path.join(app.getPath('userData'), 'updates'), app.isPackaged && process.platform === 'win32', emit);
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', event => event.preventDefault());
   handle('state:get', state, false);
+  handle('updates:check', () => updates.check(), false);
+  handle('updates:download', () => updates.download(), false);
+  handle('updates:install', () => updates.install(async installer => {
+    await manager.lock();
+    await new Promise<void>((resolve, reject) => {
+      const child = spawn(installer, ['/S', '--force-run'], { detached: true, stdio: 'ignore', windowsHide: true });
+      child.once('error', reject); child.once('spawn', () => { child.unref(); resolve(); });
+    });
+    app.quit();
+  }));
   handle('profile:save', async raw => { store.save(raw); await manager.reset(); emit(); return state(); });
   handle('profile:create', async () => { await manager.reset(); store.create(); emit(); return state(); });
   handle('profile:select', async id => { await manager.reset(); store.select(id); emit(); return state(); });

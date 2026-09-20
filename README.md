@@ -14,7 +14,9 @@ A Windows browser workspace with separate saved profiles, verified proxy routing
 
 No ZIP extraction, Node.js, Git or build commands are needed. Windows x64 is supported. The installer is unsigned, so Windows may show an unfamiliar-publisher warning. Download only from this repository's Releases page.
 
-To update, close RegionDesk and run the latest installer. Your saved profiles and logins are kept. Uninstall through Windows **Settings → Apps → RegionDesk**; saved profile data is retained.
+To update, select **Updates** in the bottom bar, then **Check for updates → Download update → Install and restart**. Save your work before restarting. Checks and downloads contact the official public GitHub release through your normal internet connection, separately from the account-browser proxy. Profile cookies and proxy credentials are not sent. The downloaded installer is checked against GitHub's SHA-256 digest before it can run.
+
+Version 0.3.2 and earlier need one manual installer update to gain these controls. You can always close RegionDesk and run the latest installer manually. Saved profiles and logins are kept. Uninstall through Windows **Settings → Apps → RegionDesk**; saved profile data is retained.
 
 ### Running the source instead
 
@@ -76,7 +78,7 @@ npm run test:desktop
 npm run package
 ```
 
-`npm run package` creates `release/RegionDesk-0.3.2-Setup.exe`. The GitHub release uses the stable download name `RegionDesk-Setup.exe`. `node scripts/package-smoke.mjs` checks the unpacked app; pass an installed executable path to check the installation. Tests use isolated local fixtures and require OpenSSL (Git for Windows' bundled copy is the default).
+`npm run package` creates `release/RegionDesk-0.3.3-Setup.exe`. Publish a stable GitHub release tagged `vX.Y.Z`, with the matching version in package.json and its tested installer uploaded as `RegionDesk-Setup.exe`; GitHub must expose the asset's SHA-256 digest. Drafts, prereleases, older versions, unexpected URLs and assets without a digest are rejected. `node scripts/package-smoke.mjs` checks the unpacked app; pass an installed executable path to check the installation. Tests use isolated local fixtures and require OpenSSL (Git for Windows' bundled copy is the default).
 
 ## Troubleshooting
 

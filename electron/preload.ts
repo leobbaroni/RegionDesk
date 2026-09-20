@@ -1,6 +1,9 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { AppState, Bounds, ProfileInput, RegionDeskAPI } from '../shared/types';
 const api: RegionDeskAPI = {
+  checkForUpdates: () => ipcRenderer.invoke('updates:check'),
+  downloadUpdate: () => ipcRenderer.invoke('updates:download'),
+  installUpdate: () => ipcRenderer.invoke('updates:install'),
   reopenTab: () => ipcRenderer.invoke('tabs:reopen'),
   toggleBookmark: (url, title) => ipcRenderer.invoke('bookmarks:toggle', url, title),
   findInPage: (text, forward) => ipcRenderer.invoke('browser:find', text, forward),

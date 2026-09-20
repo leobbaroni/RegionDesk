@@ -44,12 +44,16 @@ export interface RuntimeState {
 }
 export interface Activity { id: string; at: string; kind: 'info' | 'success' | 'warning'; message: string; profileId: string }
 export interface AppState {
+  updates?: UpdateState;
   profiles: Profile[]; activeId: string; runtime: RuntimeState; activity: Activity[];
   secureStorage: boolean; version: string;
   browsing?: BrowsingState;
 }
 export interface Bounds { x: number; y: number; width: number; height: number }
 export interface RegionDeskAPI {
+  checkForUpdates(): Promise<void>;
+  downloadUpdate(): Promise<void>;
+  installUpdate(): Promise<void>;
   getState(): Promise<AppState>;
   saveProfile(profile: ProfileInput): Promise<AppState>;
   createProfile(): Promise<AppState>;
@@ -78,6 +82,10 @@ export interface RegionDeskAPI {
   exportReport(): Promise<string | null>;
   openProvider(provider: 'webshare-free' | 'webshare-isp' | 'iproyal'): Promise<void>;
   onState(callback: (state: AppState) => void): () => void;
+}
+export interface UpdateState {
+  status: 'idle' | 'unsupported' | 'checking' | 'current' | 'available' | 'downloading' | 'downloaded' | 'installing' | 'error';
+  message: string; version?: string; progress?: number;
 }
 export const regions = [
   { country: 'US', name: 'United States', city: 'New York', locale: 'en-US', timezone: 'America/New_York', latitude: 40.7128, longitude: -74.006 },

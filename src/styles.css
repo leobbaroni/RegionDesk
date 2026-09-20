@@ -358,4 +358,10 @@ td { padding: 17px; border-top: 1px solid #2a2c34; font-size: 11px; color: #bfc1
 .page-error-address { overflow-wrap: anywhere; color: var(--muted); }
 .page-error code { font-size: 11px; color: var(--muted); }
 .page-error-actions { display: flex; gap: 10px; margin-top: 24px; }
+.updates-control { position: relative; margin-left: auto; margin-right: 18px; }
+.update-toggle { border: 0; background: transparent; color: var(--fg); font: inherit; padding: 6px; }
+.updates-panel { position: absolute; bottom: 32px; right: 0; width: 300px; background: #17181c; color: var(--fg); border: 1px solid var(--border); border-radius: 8px; padding: 18px; z-index: 110; font-size: 12px; }
+.updates-panel p { margin: 12px 0; line-height: 1.6; }
+.updates-panel small { display: block; color: var(--muted); line-height: 1.6; margin-top: 12px; }
+.updates-panel progress { width: 100%; margin-bottom: 12px; accent-color: var(--accent); }
 .browser-canvas:has(.page-error), .floating-page:has(.page-error) { overflow-y: auto; }
