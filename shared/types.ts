@@ -40,6 +40,7 @@ export interface RuntimeState {
   zoom?: number; detached?: boolean; fullscreen?: boolean; retryAt?: number;
   blockedTrackers?: number;
   find?: { active: number; matches: number };
+  pageError?: { url: string; code: string; message: string };
 }
 export interface Activity { id: string; at: string; kind: 'info' | 'success' | 'warning'; message: string; profileId: string }
 export interface AppState {

@@ -3,6 +3,7 @@ import { ArrowLeft, ArrowRight, History, LockKeyhole, Maximize2, Minus, PanelBot
 import type { AppState, BrowserAction } from '../shared/types';
 import TabStrip from './TabStrip';
 import BrowserExtras from './BrowserExtras';
+import PageError from './PageError';
 
 export default function FloatingBrowser() {
   const [data, setData] = useState<AppState | null>(null);
@@ -77,6 +78,6 @@ export default function FloatingBrowser() {
     {showSuggestions && <div className="address-suggestions" id="floating-suggestions" role="listbox" aria-label="Address suggestions">{suggestions.map((entry, i) => <button key={entry.url} id={`floating-suggestion-${i}`} role="option" aria-selected={i === index} tabIndex={-1} onMouseDown={event => event.preventDefault()} onClick={() => navigate(entry.url)}><History size={14} /><span><strong>{entry.title}</strong><small>{entry.url}</small></span></button>)}</div>}
     {error && <div className="floating-error" role="alert"><span>{error}</span><button aria-label="Dismiss error" onClick={() => setError('')}><X size={15} /></button></div>}
     {data && <BrowserExtras data={data} busy={busy} run={run} />}
-    <div className="floating-page" ref={guest}>{!runtime?.url && <div className="floating-new-tab"><h1>New tab</h1><p>Enter a website above to browse with {profile?.name}.</p><button className="button secondary" onClick={focusAddress}>Enter an address</button></div>}</div>
+    <div className="floating-page" ref={guest}>{runtime && <PageError runtime={runtime} action={action} />}{!runtime?.url && !runtime?.pageError && <div className="floating-new-tab"><h1>New tab</h1><p>Enter a website above to browse with {profile?.name}.</p><button className="button secondary" onClick={focusAddress}>Enter an address</button></div>}</div>
   </main>;
 }

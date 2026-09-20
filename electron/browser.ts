@@ -30,6 +30,7 @@ export class AccountBrowser {
   view: WebContentsView | null = null;
   private sessions = new Map<string, Session>();
   private views = new Map<string, WebContentsView>();
+  private pageErrors = new Map<string, NonNullable<RuntimeState['pageError']>>();
   private viewEpoch = 0;
   private tabQueue = Promise.resolve();
   private bridge: ProxyServer | null = null;
@@ -84,9 +85,10 @@ export class AccountBrowser {
     const wc = this.view?.webContents;
     const saved = this.browsing.get(this.store.activeId);
     const tab = saved.tabs.find(t => t.id === saved.activeTabId)!;
-    this.state.url = wc?.getURL().startsWith('http') ? wc.getURL() : tab.url;
-    this.state.title = tab.title; this.state.loading = wc?.isLoading() || false;
-    this.state.canGoBack = wc?.navigationHistory.canGoBack() || false; this.state.canGoForward = wc?.navigationHistory.canGoForward() || false;
+    this.state.pageError = this.pageErrors.get(tab.id);
+    this.state.url = this.state.pageError?.url || (wc?.getURL().startsWith('http') ? wc.getURL() : tab.url);
+    this.state.title = tab.title; this.state.loading = !this.state.pageError && (wc?.isLoading() || false);
+    this.state.canGoBack = this.state.pageError?.code === 'ERR_INVALID_URL' && !!wc?.getURL() || wc?.navigationHistory.canGoBack() || false; this.state.canGoForward = wc?.navigationHistory.canGoForward() || false;
     this.state.zoom = wc?.getZoomFactor() || 1;
     this.floating?.setTitle(`${this.store.active.name} · ${tab.title} — RegionDesk`);
     this.applyBounds(); this.updateFloatingMenu(); this.emit();
@@ -95,9 +97,10 @@ export class AccountBrowser {
     if (!this.allowed()) { this.syncActiveView(); return; }
     const data = this.browsing.get(this.store.activeId);
     const tab = data.tabs.find(t => t.id === data.activeTabId)!;
+    if (this.pageErrors.has(tab.id) && !this.views.has(tab.id)) { this.activateView(null); this.syncActiveView(); return; }
     const existed = this.views.has(tab.id);
     await this.createView();
-    if (!this.allowed()) return;
+    if (!this.allowed() || this.pageErrors.has(tab.id)) return;
     if (!existed && tab.url && this.view) void this.view.webContents.loadURL(tab.url).catch(() => {});
     this.syncActiveView();
   }
@@ -113,6 +116,7 @@ export class AccountBrowser {
   selectTab(id: string) { return this.tabTask(async () => { this.browsing.select(this.store.activeId, id); await this.showActiveTab(); this.emit(); }); }
   closeTab(id: string) { return this.tabTask(async () => {
     this.browsing.close(this.store.activeId, id);
+    this.pageErrors.delete(id);
     const old = this.views.get(id); this.views.delete(id);
     if (old) { if (old === this.view) this.activateView(null); this.win.contentView.removeChildView(old); if (!old.webContents.isDestroyed()) old.webContents.close(); }
     await this.showActiveTab(); this.emit();
@@ -128,6 +132,18 @@ export class AccountBrowser {
     this.activity = this.activity.slice(0, 60); this.emit();
   }
   private allowed() { return this.state.status === 'ready' && Date.now() < this.validUntil; }
+  private failPage(tabId: string, url: string, code: string, message: string, discardView = false) {
+    this.pageErrors.set(tabId, { url: url.slice(0, 4096), code, message });
+    if (discardView) {
+      const view = this.views.get(tabId); this.views.delete(tabId);
+      if (view) {
+        if (view === this.view) this.activateView(null);
+        this.win.contentView.removeChildView(view);
+        if (!view.webContents.isDestroyed()) view.webContents.close();
+      }
+    }
+    this.syncActiveView();
+  }
   private permission(id: string, wc: WebContents | null, permission: string, origin: string, media: string[] = []) {
     if (id !== this.store.activeId || !this.allowed()) return false;
     const owned = [...this.views.values()].find(view => wc ? view.webContents === wc : view.webContents.getURL().startsWith(origin));
@@ -205,7 +221,8 @@ export class AccountBrowser {
         }
         return;
       }
-      if (this.state.status === 'ready' && !this.checking) void this.lock(connectionError(null, this.upstreamStatus), 'error');
+      // A CONNECT rejection belongs to its destination, including login/pop-up
+      // hosts. Only the independent route check can invalidate verification.
     });
     bridge.on('error', () => { if (this.bridge === bridge) void this.lock('The proxy route stopped. Verify the connection again.', 'error'); });
     trace('starting bridge'); await bridge.listen(); this.bridge = bridge;
@@ -284,60 +301,73 @@ export class AccountBrowser {
     wc.on('leave-html-full-screen', () => this.floating?.setFullScreen(false));
     // Create the renderer's initial context before sending emulation commands.
     // This is a local blank document; no account website has been requested yet.
-    await wc.loadURL('about:blank');
-    wc.debugger.attach('1.3');
-    // Configure child contexts before they execute site code. Page overrides
-    // alone leave navigator.language in workers at the machine's language.
-    wc.debugger.on('message', (_event, method, params) => {
-      if (method !== 'Target.attachedToTarget') return;
-      const child = params.sessionId as string;
-      void (async () => {
-        await wc.debugger.sendCommand('Emulation.setUserAgentOverride', { userAgent, acceptLanguage: profile.locale, userAgentMetadata }, child);
-        if (params.targetInfo.type === 'iframe' || params.targetInfo.type === 'page') {
-          await wc.debugger.sendCommand('Emulation.setTimezoneOverride', { timezoneId: profile.timezone }, child);
-          await wc.debugger.sendCommand('Emulation.setLocaleOverride', { locale: profile.locale }, child);
-          await wc.debugger.sendCommand('Emulation.setGeolocationOverride', { latitude: profile.latitude, longitude: profile.longitude, accuracy: 5000 }, child);
+    try {
+      await wc.loadURL('about:blank');
+      wc.debugger.attach('1.3');
+      // Configure child contexts before they execute site code. Page overrides
+      // alone leave navigator.language in workers at the machine's language.
+      const detachedSessions = new Set<string>();
+      const configuringSessions = new Set<string>();
+      wc.debugger.on('message', (_event, method, params) => {
+        if (method === 'Target.detachedFromTarget') { if (configuringSessions.has(params.sessionId)) detachedSessions.add(params.sessionId); return; }
+        if (method !== 'Target.attachedToTarget') return;
+        const child = params.sessionId as string;
+        configuringSessions.add(child);
+        void (async () => {
+          await wc.debugger.sendCommand('Emulation.setUserAgentOverride', { userAgent, acceptLanguage: profile.locale, userAgentMetadata }, child);
+          if (params.targetInfo.type === 'iframe' || params.targetInfo.type === 'page') {
+            await wc.debugger.sendCommand('Emulation.setTimezoneOverride', { timezoneId: profile.timezone }, child);
+            await wc.debugger.sendCommand('Emulation.setLocaleOverride', { locale: profile.locale }, child);
+            await wc.debugger.sendCommand('Emulation.setGeolocationOverride', { latitude: profile.latitude, longitude: profile.longitude, accuracy: 5000 }, child);
+          }
+          await wc.debugger.sendCommand('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: true, flatten: true }, child);
+          await wc.debugger.sendCommand('Runtime.runIfWaitingForDebugger', {}, child);
+        })().catch(async () => {
+          // Redirects and short-lived workers can disappear during these awaits.
+          if (!alive() || detachedSessions.has(child)) return;
+          try { await wc.debugger.sendCommand('Target.getTargetInfo', { targetId: params.targetInfo.targetId }); }
+          catch { return; }
+          if (alive() && !detachedSessions.has(child)) this.failPage(tabId, wc.getURL(), 'ERR_REGIONAL_SETTINGS', 'This page could not apply your regional settings. Reload to try again.', true);
+        }).finally(() => { configuringSessions.delete(child); detachedSessions.delete(child); });
+      });
+      await wc.debugger.sendCommand('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: true, flatten: true });
+      await wc.debugger.sendCommand('Emulation.setTimezoneOverride', { timezoneId: profile.timezone });
+      await wc.debugger.sendCommand('Emulation.setLocaleOverride', { locale: profile.locale });
+      await wc.debugger.sendCommand('Emulation.setUserAgentOverride', { userAgent, acceptLanguage: profile.locale, userAgentMetadata });
+      await wc.debugger.sendCommand('Emulation.setGeolocationOverride', { latitude: profile.latitude, longitude: profile.longitude, accuracy: 5000 });
+      wc.debugger.on('detach', () => { if (alive() && this.state.status === 'ready') this.failPage(tabId, wc.getURL(), 'ERR_REGIONAL_SETTINGS', 'This tab lost its regional settings. Reload to restore them.', true); });
+      const navigationAllowed = (url: string) => { try { normalizeURL(url, testMode); return this.allowed(); } catch { return false; } };
+      wc.on('will-navigate', (event, url) => { if (!navigationAllowed(url)) { event.preventDefault(); if (alive()) this.failPage(tabId, url, 'ERR_INVALID_URL', 'This address is blocked. Enter a public HTTPS website or go back.'); } });
+      wc.on('will-redirect', (event, url) => { if (!navigationAllowed(url)) { event.preventDefault(); if (event.isMainFrame && alive()) this.failPage(tabId, url, 'ERR_INVALID_URL', 'This page redirected to a blocked address. Enter a public HTTPS website or go back.'); } });
+      wc.setWindowOpenHandler(({ url }) => {
+        if (navigationAllowed(url)) setImmediate(() => { if (alive()) void this.newTab(url).catch(error => this.reportTabError(error)); });
+        else this.log('A popup was blocked. Only HTTPS pages in the verified profile can open.', 'warning');
+        return { action: 'deny' };
+      });
+      wc.on('will-attach-webview', event => event.preventDefault());
+      const record = (visit = false) => {
+        if (!alive() || this.pageErrors.has(tabId)) return;
+        const url = wc.getURL();
+        if (url.startsWith('https:') || testMode && url.startsWith('http:')) {
+          try { this.browsing.setPage(profile.id, tabId, url, wc.getTitle(), visit); } catch { /* invalid destinations are never persisted */ }
         }
-        await wc.debugger.sendCommand('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: true, flatten: true }, child);
-        await wc.debugger.sendCommand('Runtime.runIfWaitingForDebugger', {}, child);
-      })().catch(() => { if (alive()) void this.lock('A browser context could not apply the regional settings. Browsing was locked.', 'error'); });
-    });
-    await wc.debugger.sendCommand('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: true, flatten: true });
-    await wc.debugger.sendCommand('Emulation.setTimezoneOverride', { timezoneId: profile.timezone });
-    await wc.debugger.sendCommand('Emulation.setLocaleOverride', { locale: profile.locale });
-    await wc.debugger.sendCommand('Emulation.setUserAgentOverride', { userAgent, acceptLanguage: profile.locale, userAgentMetadata });
-    await wc.debugger.sendCommand('Emulation.setGeolocationOverride', { latitude: profile.latitude, longitude: profile.longitude, accuracy: 5000 });
-    wc.debugger.on('detach', () => { if (alive() && this.state.status === 'ready') void this.lock('Browser regional settings were detached. Verify again before browsing.', 'error'); });
-    const navigationAllowed = (url: string) => { try { normalizeURL(url, testMode); return this.allowed(); } catch { return false; } };
-    wc.on('will-navigate', (event, url) => { if (!navigationAllowed(url)) event.preventDefault(); });
-    wc.on('will-redirect', (event, url) => { if (!navigationAllowed(url)) event.preventDefault(); });
-    wc.setWindowOpenHandler(({ url }) => {
-      if (navigationAllowed(url)) setImmediate(() => { if (alive()) void this.newTab(url).catch(error => this.reportTabError(error)); });
-      else this.log('A popup was blocked. Only HTTPS pages in the verified profile can open.', 'warning');
-      return { action: 'deny' };
-    });
-    wc.on('will-attach-webview', event => event.preventDefault());
-    const record = (visit = false) => {
-      if (!alive()) return;
-      const url = wc.getURL();
-      if (url.startsWith('https:') || testMode && url.startsWith('http:')) {
-        try { this.browsing.setPage(profile.id, tabId, url, wc.getTitle(), visit); } catch { /* invalid destinations are never persisted */ }
-      }
-    };
-    const sync = () => { if (!alive()) return; if (this.view === view) this.syncActiveView(); else this.emit(); };
-    wc.on('did-start-loading', sync); wc.on('did-stop-loading', sync);
-    wc.on('did-navigate', (_event, _url, code) => { if (code < 400) record(true); sync(); });
-    wc.on('did-navigate-in-page', (_event, _url, main) => { if (main) { record(true); sync(); } });
-    wc.on('page-title-updated', () => { record(); sync(); });
-    wc.on('did-finish-load', () => { record(); sync(); if (this.view === view && this.allowed()) void this.inspect().catch(() => {}); });
-    wc.on('did-fail-load', (_e, code, _desc, _url, isMainFrame) => {
-      if (!isMainFrame || code === -3 || !alive()) return;
-      if (code === -111 && this.upstreamStatus === 429 && this.allowed()) { this.state.message = 'The proxy rate-limited this page. Wait before reloading; your session is preserved.'; this.emit(); }
-      else if ([-130, -111, -102, -105, -118].includes(code)) void this.lock('The page lost its connection. Check the proxy and verify again.', 'error');
-      else { this.state.message = `The page could not load (network code ${code}). Try another HTTPS address or verify again.`; this.log(this.state.message, 'warning'); }
-    });
-    wc.on('render-process-gone', () => { if (alive()) void this.lock('The browser stopped unexpectedly. Verify to restart it.', 'error'); });
-    this.applyBounds();
+      };
+      const sync = () => { if (!alive()) return; if (this.view === view) this.syncActiveView(); else this.emit(); };
+      wc.on('did-start-navigation', (_event, _url, _inPlace, main) => { if (main && alive()) { this.pageErrors.delete(tabId); sync(); } });
+      wc.on('did-start-loading', sync); wc.on('did-stop-loading', sync);
+      wc.on('did-navigate', (_event, _url, code) => { if (code < 400) record(true); sync(); });
+      wc.on('did-navigate-in-page', (_event, _url, main) => { if (main) { record(true); sync(); } });
+      wc.on('page-title-updated', () => { record(); sync(); });
+      wc.on('did-finish-load', () => { record(); sync(); if (this.view === view && this.allowed()) void this.inspect().catch(() => {}); });
+      wc.on('did-fail-load', (_e, code, desc, url, isMainFrame) => {
+        if (!isMainFrame || code === -3 || !alive()) return;
+        this.failPage(tabId, url, /^ERR_[A-Z0-9_]+$/.test(desc) ? desc : `NETWORK_ERROR_${code}`, 'This page could not be reached. Check the address or try reloading. Other tabs can still be used.');
+      });
+      wc.on('render-process-gone', () => { if (alive()) this.failPage(tabId, this.browsing.get(profile.id).tabs.find(t => t.id === tabId)?.url || '', 'ERR_RENDERER_CRASHED', 'This tab stopped responding. Reload to reopen it.', true); });
+      this.applyBounds();
+    } catch {
+      if (alive()) this.failPage(tabId, this.browsing.get(profile.id).tabs.find(t => t.id === tabId)?.url || '', 'ERR_REGIONAL_SETTINGS', 'This tab could not start with your regional settings. Reload to try again.', true);
+    }
   }
   async verify(background = false) {
     if (this.checking) return;
@@ -381,7 +411,7 @@ export class AccountBrowser {
       await this.tabTask(() => this.showActiveTab());
       if (token !== this.generation) return;
       this.state.cookieCount = (await this.getSession().cookies.get({})).length;
-      trace('reading browser evidence'); await this.inspect(); trace('evidence complete'); this.applyBounds();
+      trace('reading browser evidence'); await this.inspect().catch(() => {}); trace('evidence complete'); this.applyBounds();
       if (!background) this.log(`Connection verified in ${network.country}. Managed browsing unlocked.`, 'success');
       this.emit();
     } catch (error) {
@@ -404,7 +434,7 @@ export class AccountBrowser {
     this.dock();
     ++this.generation; this.checking = false; this.abort?.abort(); this.abort = null; this.validUntil = 0;
     ++this.viewEpoch;
-    const oldViews = [...this.views.values()]; this.views.clear(); this.view = null;
+    const oldViews = [...this.views.values()]; this.views.clear(); this.pageErrors.clear(); this.view = null;
     for (const old of oldViews) { if (!this.win.isDestroyed()) this.win.contentView.removeChildView(old); if (!old.webContents.isDestroyed()) old.webContents.close(); }
     this.browsing.flush();
     this.state = { ...lockedState(), status, message, network: this.state.network, browser: this.state.browser, cookieCount: this.state.cookieCount };
@@ -418,14 +448,21 @@ export class AccountBrowser {
   async reset() { await this.lock(); this.retryCount = 0; this.state = lockedState(); this.emit(); }
   navigate(input: string) { return this.tabTask(async () => {
     if (!this.allowed()) throw new Error('Verify the connection before opening a website.');
-    const url = normalizeURL(input, testMode);
     const id = this.browsing.get(this.store.activeId).activeTabId;
+    let url: string;
+    try { url = normalizeURL(input, testMode); }
+    catch (error) { this.failPage(id, typeof input === 'string' ? input : '', 'ERR_INVALID_URL', error instanceof Error ? error.message : 'Enter a valid HTTPS address.'); return; }
+    this.pageErrors.delete(id);
     this.browsing.setPage(this.store.activeId, id, url, url);
     await this.createView();
-    if (!this.allowed() || !this.view) return;
+    if (!this.allowed() || !this.view || this.pageErrors.has(id)) return;
     void this.view.webContents.loadURL(url).catch(() => {}); this.syncActiveView();
   }); }
   action(action: string) {
+    const id = this.browsing.get(this.store.activeId).activeTabId;
+    const error = this.pageErrors.get(id);
+    if (this.allowed() && error && action === 'reload') { void this.navigate(error.url).catch(e => this.reportTabError(e)); return; }
+    if (this.allowed() && error && action === 'back' && error.code === 'ERR_INVALID_URL') { this.pageErrors.delete(id); this.syncActiveView(); return; }
     const wc = this.view?.webContents; if (!wc || !this.allowed()) return;
     if (action === 'back' && wc.navigationHistory.canGoBack()) wc.navigationHistory.goBack();
     else if (action === 'forward' && wc.navigationHistory.canGoForward()) wc.navigationHistory.goForward();
@@ -497,8 +534,8 @@ export class AccountBrowser {
   private applyBounds() {
     for (const view of this.views.values()) if (view !== this.view) view.setVisible(false);
     if (!this.view) return;
-    if (this.floating) { if (this.floatingBounds) this.view.setBounds(this.floatingBounds); this.view.setVisible(!!this.floatingBounds && this.allowed() && !!this.state.url); return; }
-    this.view.setVisible(!!this.bounds && this.allowed() && !!this.state.url);
+    if (this.floating) { if (this.floatingBounds) this.view.setBounds(this.floatingBounds); this.view.setVisible(!!this.floatingBounds && this.allowed() && !!this.state.url && !this.state.pageError); return; }
+    this.view.setVisible(!!this.bounds && this.allowed() && !!this.state.url && !this.state.pageError);
     if (this.bounds) this.view.setBounds(this.bounds);
   }
   async inspect() {

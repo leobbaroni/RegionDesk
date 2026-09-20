@@ -282,7 +282,7 @@ td { padding: 17px; border-top: 1px solid #2a2c34; font-size: 11px; color: #bfc1
 .permission-row select:hover { border-color: #555762; }
 
 .tab-strip { display: flex; align-items: stretch; flex-shrink: 0; min-height: 37px; border-bottom: 1px solid var(--border); background: #18191d; }
-.tab-list { display: flex; overflow-x: auto; flex: 1; min-width: 0; }
+.tab-list { display: flex; overflow-x: auto; flex: 0 1 auto; min-width: 0; }
 .browser-tab { display: flex; align-items: center; flex: 0 0 165px; max-width: 200px; border-right: 1px solid var(--border); color: #a3a6b2; }
 .browser-tab.selected { background: #292634; color: #dfd8ff; }
 .browser-tab button { background: transparent; color: inherit; border: 0; }
@@ -351,3 +351,11 @@ td { padding: 17px; border-top: 1px solid #2a2c34; font-size: 11px; color: #bfc1
 .advanced-settings > summary, .provider-section > summary { cursor: pointer; padding: 18px 24px; color: var(--control-text); font-size: 13px; }
 .advanced-settings { border-top: 1px solid var(--border); }
 .provider-section:not([open]) { padding: 0; }
+.page-error { width: min(100%, 620px); margin: 0 auto; padding: 48px 28px; color: var(--fg); }
+.page-error > svg { color: var(--muted); margin-bottom: 20px; }
+.page-error h2 { font-size: 22px; margin-bottom: 16px; }
+.page-error p { font-size: 13px; line-height: 1.7; margin-bottom: 14px; }
+.page-error-address { overflow-wrap: anywhere; color: var(--muted); }
+.page-error code { font-size: 11px; color: var(--muted); }
+.page-error-actions { display: flex; gap: 10px; margin-top: 24px; }
+.browser-canvas:has(.page-error), .floating-page:has(.page-error) { overflow-y: auto; }
